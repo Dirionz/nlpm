@@ -1,0 +1,37 @@
+[
+  {
+    "name": "brew",
+    "packages": [
+      {
+        "name": "hello"
+      }
+    ]
+  },
+  {
+    "name": "apt",
+    "packages": [
+      {
+        "name": "curl"
+      }
+    ]
+  },
+  {
+    "name": "git",
+    "packages": [
+      {
+        "name": "GGLucas/cortex"
+      },
+      {
+        "name": "connermcd/gtd"
+      }
+    ]
+  },
+  {
+    "name": "npm",
+    "packages": [
+      {
+        "name": "trello-cli"
+      }
+    ]
+  }
+]

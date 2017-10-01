@@ -1,0 +1,4 @@
+packageDir: ~/.config/nlpm/packages.json
+gitAppDir: ~/Apps/
+aptExtraDistros:
+ - Linux Mint
