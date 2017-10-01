@@ -30,7 +30,7 @@
     "name": "npm",
     "packages": [
       {
-        "name": "trello-cli"
+        "name": "hello-world-node-package"
       }
     ]
   }
