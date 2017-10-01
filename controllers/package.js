@@ -215,7 +215,7 @@ function restoreTask(packages, manager, managers, callback) { // TODO: Add "Afte
     var pkg = packages.pop();
     switch(manager.name) { // TODO: Handle error with put in logfile?
         case 'npm':
-            displayer.infoLoader("Restoring package "+pkg+" with npm")
+            displayer.infoLoader("Restoring package "+pkg.name+" with npm")
             npm.restore(pkg.name, function(err) { // TOOD: Change to restore funcitons!
                 notifyUser(err, pkg.name);
                 callback(null, packages, manager, managers);
@@ -236,7 +236,7 @@ function restoreTask(packages, manager, managers, callback) { // TODO: Add "Afte
             })
             break;
         case 'git':
-            displayer.infoLoader("Restoring package "+pkg+" with git")
+            displayer.infoLoader("Restoring package "+pkg.name+" with git")
             git.restore(pkg.name, function(err) { 
                 //notifyUser(err, pkg.name);
                 displayer.success(err.msg); // Always returns error..
@@ -248,7 +248,7 @@ function restoreTask(packages, manager, managers, callback) { // TODO: Add "Afte
                 //console.log("Did not install pkg: "+pkg.name)
                 callback(null, packages, manager, managers);
             } else {
-                displayer.infoLoader("Restoring package "+pkg+" with brew")
+                displayer.infoLoader("Restoring package "+pkg.name+" with brew")
                 brew.restore(pkg.name, function(err) {
                     notifyUser(err, pkg.name);
                     callback(null, packages, manager, managers);
