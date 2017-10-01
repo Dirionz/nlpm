@@ -1,6 +1,6 @@
 # Nlpm
 
-[![Build Status](https://travis-ci.org/Dirionz/nlpm.svg?branch=master)](https://travis-ci.org/Dirionz/nlpm)
+[![Build Status](https://travis-ci.org/Dirionz/nlpm.svg?branch=master)](https://travis-ci.org/Dirionz/nlpm) [![dependencies Status](https://david-dm.org/Dirionz/nlpm/status.svg)](https://david-dm.org/Dirionz/nlpm)
 
 Nlpm is tool for installing and restoring packages, using various underlying package managers. Behavior is kinda like npm but for global packages.
 
