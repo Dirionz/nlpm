@@ -5,7 +5,7 @@ services:
   - docker
 install: 
   - npm install
-  - npm install -g codecov
+  - npm config set registry http://registry.npmjs.org/
   - ./test/scripts/install.sh
 env:
   - CXX=g++-4.8
@@ -22,6 +22,3 @@ script:
     #- if [ "$TRAVIS_BRANCH" = "master" ]; then docker run --user user nlpm:ubuntu /bin/bash -c "source ~/.nvm/nvm.sh; cd /home/user/nlpm; ./app.js install; exit $?"; fi
     #- exit $?
   - ./test/scripts/run.sh
-after_success:
-  - istanbul cover ./node_modules/mocha/bin/_mocha --report lcovonly -- -R spec
-  - codecov -t 50208e3e-79ee-444d-ae99-d0a3ffe48eb5
