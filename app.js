@@ -6,7 +6,7 @@ const program = require('commander');
 const packageController = require('./controllers/package');
 
 program
-  .version('1.1.3')
+  .version('1.1.4')
 
 program
   .command('install [pkg...]')
