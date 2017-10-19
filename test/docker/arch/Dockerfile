@@ -16,6 +16,9 @@ USER user
 # Install Linuxbrew
 RUN git clone https://github.com/Linuxbrew/brew.git $HOME/.linuxbrew
 ENV PATH="/home/user/.linuxbrew/bin:${PATH}"
+RUN brew list # Installs ruby dep without returning exitcode 1
+RUN brew update || true
+RUN brew doctor || true
 #RUN brew install node npm
 
 ENV NVM_VERSION v0.29.0
