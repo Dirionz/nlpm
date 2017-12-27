@@ -1,0 +1,2162 @@
+#!/usr/bin/perl
+#
+# Copyright (C) 2010-2017 Trizen <echo dHJpemVuQHByb3Rvbm1haWwuY29tCg== | base64 -d>.
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+
+# Author: Daniel "Trizen" Șuteu
+# License: GPLv3
+# Created: 07 July 2010
+# First rewrite: 16 February 2011
+# Second rewrite: 24 March 2012
+# Latest edit: 21 December 2017
+# https://github.com/trizen/trizen
+
+# Contributors:
+#   notramo - https://github.com/notramo
+#   ccl2of4 - https://github.com/ccl2of4
+#   nl6720  - https://github.com/nl6720
+#   JJK96   - https://github.com/JJK96
+
+eval 'exec perl -S $0 ${1+"$@"}'
+  if 0;    # not running under some shell
+
+use 5.020;
+use strict;
+use warnings;
+
+use experimental qw(signatures);
+
+use List::Util qw(first any);
+use Encode qw(decode_utf8);
+use Getopt::Std qw(getopts);
+use URI::Escape qw(uri_escape_utf8);
+
+use Term::ANSIColor qw(:constants);
+
+use File::Path qw(make_path rmtree);
+use File::Spec::Functions qw(catdir catfile tmpdir curdir rel2abs);
+
+my $version  = '1.33';
+my $execname = 'trizen';
+
+my $AUR_V = '5';    # current version of AurJson
+
+my $aur_base_url       = 'https://aur.archlinux.org';
+my $aur_rpc_base_url   = "$aur_base_url/rpc.php";
+my $aur_package_id_url = "$aur_base_url/packages.php?ID=%s";
+
+# Configuration dir/file
+my $config_dir = (
+                    $ENV{XDG_CONFIG_HOME}
+                  ? $ENV{XDG_CONFIG_HOME}
+                  : ($ENV{HOME} || $ENV{LOGDIR} || (getpwuid $<)[7] || `echo -n ~`) . '/.config'
+                 )
+  . "/$execname";
+
+my $config_file = catfile($config_dir, "$execname.conf");
+my $user = (getpwuid $<)[0] || substr(`/usr/bin/whoami`, 0, -1);
+my $arch = substr(`/usr/bin/uname -m`, 0, -1);
+
+my %ignored_pkgs;
+if (-x '/usr/bin/pacconf') {
+    %ignored_pkgs = map { ($_ => 1) } split(' ', `/usr/bin/pacconf IgnorePkg`);
+}
+
+# UTF-8 output
+binmode(STDOUT, ':utf8');
+
+#----------------------- COLORS -----------------------#
+my %c = (
+         cblack  => (ON_BLACK),
+         byellow => (BOLD YELLOW),
+         bpurple => (BOLD MAGENTA),
+         bblue   => (BOLD BLUE),
+         bgreen  => (BOLD GREEN),
+         bbgreen => (BOLD GREEN ON_BLACK),
+         bold    => (BOLD),
+         bred    => (BOLD RED),
+         reset   => (RESET),
+        );
+
+@ARGV = map { decode_utf8($_) } @ARGV;
+
+my $stdout_on_tty = -t STDOUT;
+
+# Disable colors
+if (not $stdout_on_tty or (any { $_ eq '--nocolors' } @ARGV)) {
+    %c = map { ($_ => "") } keys %c;
+}
+
+if (not -d $config_dir) {
+    make_path($config_dir)
+      or note(":: Unable to create directory <<$config_dir>>: {!$!!}");
+}
+
+#----------------------- GLOBAL VARIABLES -----------------------#
+my $editor = $ENV{VISUAL} || $ENV{EDITOR} || 'nano';
+
+my %CONFIG = (
+              VERSION                      => $version,
+              show_comments                => 0,
+              quiet                        => 0,
+              debug                        => 0,
+              nocolors                     => 0,
+              movepkg                      => 0,
+              noedit                       => 0,
+              nobuild                      => 0,
+              nopull                       => 0,
+              noinfo                       => 0,
+              skipinteg                    => 0,
+              force                        => 0,
+              lwp_show_progress            => 0,
+              lwp_env_proxy                => 1,
+              lwp_timeout                  => 60,
+              ssl_verify_hostname          => 1,
+              packages_in_stats            => 5,
+              git_clone_depth              => 0,
+              split_packages               => 1,
+              recompute_deps               => 1,
+              use_sudo                     => ((-x '/usr/bin/sudo') ? 1 : 0),
+              su_command                   => '/usr/bin/su -c',
+              sudo_command                 => '/usr/bin/sudo',
+              sudo_autorepeat              => 0,
+              sudo_autorepeat_at_runtime   => 0,
+              sudo_autorepeat_interval     => 180,
+              makepkg_command              => '/usr/bin/makepkg --syncdeps --force --clean',
+              movepkg_dir                  => '/var/cache/pacman/pkg',
+              pacman_local_dir             => '/var/lib/pacman/local',
+              pacman_command               => '/usr/bin/pacman',
+              show_build_files_content     => 1,
+              aur_results_votes            => 1,
+              aur_results_popularity       => 1,
+              aur_results_last_modified    => 1,
+              aur_results_show_installed   => 1,
+              show_ood                     => 0,
+              show_inexistent              => 1,
+              show_unmaintained            => 1,
+              install_built_with_noconfirm => 0,
+             );
+
+$CONFIG{clone_dir} = catdir(tmpdir(), "$execname-$user");
+
+my %lconfig = (
+    %CONFIG,
+    devel         => 0,
+    needed        => 0,
+    noconfirm     => 0,
+    aur           => 0,
+    search        => 0,                           # -s
+    info          => 0,                           # -i
+    clean         => 0,                           # -c
+    local         => 0,                           # -l
+    pkgbuild      => 0,
+    sysupgrade    => 0,                           # -u
+    comments      => 0,
+    database      => 0,                           # -D
+    files         => 0,                           # -F
+    query         => 0,                           # -Q
+    remove        => 0,                           # -R
+    sync          => 0,                           # -S
+    deptest       => 0,                           # -T
+    upgrade       => 0,                           # -U
+    get           => 0,
+    refresh       => 0,                           # -y
+    upgrades      => 0,                           # -u
+    check         => 0,                           # -k
+    with_deps     => 0,                           # -d
+    maintainer    => 0,                           # -m
+    really_quiet  => 0,
+    noinstall     => 0,
+    update_config => 0,
+    asdep         => 0,                           # alias for `--asdeps`
+    asdeps        => 0,
+    asexplicit    => 0,
+    help          => 0,
+    as_root       => ($user eq 'root' ? 1 : 0),
+    stats         => \&show_stats,
+    version       => \&version,
+              );
+
+my $config_header = <<"EOH";
+#!/usr/bin/perl
+
+# $execname configuration file
+# Updated on ${\(scalar localtime)}
+
+EOH
+
+our $CONFIG;
+
+sub dump_configuration ($config, $configuration_file) {
+
+    open my $config_fh, '>:utf8', $configuration_file or return;
+
+    require Data::Dump;
+    my $dumped_config = q{our $CONFIG = } . Data::Dump::dump($config) . "\n";
+    print $config_fh $config_header, $dumped_config;
+    close $config_fh;
+}
+
+if (-e $config_file and (-s _) > 1) {
+    require $config_file;    # Load the configuration file
+
+    if (ref($CONFIG) eq 'HASH') {
+        my @valid_keys = grep { exists $CONFIG{$_} } keys(%$CONFIG);
+
+        $CONFIG->{clone_dir} //= $CONFIG{clone_dir};
+
+        @CONFIG{@valid_keys}  = @{$CONFIG}{@valid_keys};
+        @lconfig{@valid_keys} = @{$CONFIG}{@valid_keys};
+
+        if ($CONFIG{VERSION} != $version) {
+            $lconfig{update_config} = 1;
+            $CONFIG{VERSION}        = $version;
+        }
+    }
+    else {
+        note("Invalid config file: " . ($! || "\$CONFIG must be a HASH ref!\n"));
+        $lconfig{update_config} = 1;
+    }
+}
+else {
+    msg(":: Saving configuration file...") if $lconfig{debug};
+    dump_configuration(\%CONFIG, $config_file)
+      or note(":: Cannot open file <<$config_file>> for write: {!$!!}");
+}
+
+if (not -d $lconfig{clone_dir}) {
+    make_path($lconfig{clone_dir})
+      or error(":: Unable to create clone directory <<$lconfig{clone_dir}>>: {!$!!}");
+}
+
+my $short_arguments = 'TDFCUNQRSGabcdefghiklmnopqrstuvwy';
+
+my @package_suffices = qw (
+  .tar.7z
+  .tar.Z
+  .tar.bz2
+  .tar.gz
+  .tar.lrz
+  .tar.lz
+  .tar.lzma
+  .tar.lzo
+  .tar.xz
+  .tgz
+  .xz
+  .7z
+  .bz2
+  .gz
+  .lzma
+  .lzo
+  .tar
+  .zip
+  );
+
+my %already_built;        # will keep track of built packages
+my %already_installed;    # will keep track of installed packages
+my %seen_package;         # will keep track of seen packages
+
+my $pkg_suffices = join('|', map { quotemeta } @package_suffices);
+my $pkg_suffix_re = qr/-[^-]+-\d+-\w+\.pkg(?:$pkg_suffices)\z/o;
+
+my $sudo_autorepeat_pid;
+
+# Main quit
+sub main_quit () {
+    if ($lconfig{update_config}) {
+        dump_configuration(\%CONFIG, $config_file);
+    }
+    kill('TERM', $sudo_autorepeat_pid) if $sudo_autorepeat_pid;
+    exit($? >> 8);
+}
+
+#----------------------- USAGE -----------------------#
+sub help {
+    print <<"HELP";
+
+========================== $c{bbgreen}Trizen AUR Package Manager$c{reset} ==========================
+
+$c{bold}usage:$c{reset} $execname [options] [pkgname] [pkgname] [...]
+
+$c{bbgreen}Main options:$c{reset}
+
+    $c{bold}-S$c{reset}, $c{bold}--sync$c{reset}      : install a package (see: $execname -Sh)
+    $c{bold}-C$c{reset}, $c{bold}--comments$c{reset}  : outputs AUR comments for a package
+    $c{bold}-G$c{reset}, $c{bold}--get$c{reset}       : clones a package in the current directory
+    $c{bold}-R$c{reset}, $c{bold}--remove$c{reset}    : removes packages (see: pacman -Rh)
+    $c{bold}-Q$c{reset}, $c{bold}--query$c{reset}     : query locally-installed packages (see: pacman -Qh)
+    $c{bold}-U$c{reset}, $c{bold}--upgrade$c{reset}   : install built packages from $lconfig{clone_dir} or `pwd`
+
+$c{bbgreen}Other options:$c{reset}
+
+        $c{bold}--quiet$c{reset}     : do not display any warnings
+        $c{bold}--stats$c{reset}     : show stats about the installed packages
+        $c{bold}--nocolors$c{reset}  : disable text colors
+        $c{bold}--debug$c{reset}     : activate the debug/verbose mode
+        $c{bold}--help$c{reset}      : print this message and exit
+        $c{bold}--version$c{reset}   : print version and exit
+
+$c{bbgreen}See also:$c{reset}
+
+    $c{bold}$execname -Sh$c{reset}
+    $c{bold}$execname -Gh$c{reset}
+
+$c{bred}::$c{reset} Each configuration key is a valid option when preceded with '--'
+$c{bred}::$c{reset} Configuration file: $c{bold}$config_file$c{reset}
+HELP
+    main_quit();
+}
+
+sub sync_help {
+    print <<"SYNC_HELP";
+$c{bold}usage:$c{reset} $execname {-S --sync} [options] [package(s)]
+
+$c{bbgreen}Main options:$c{reset}
+
+  $c{bold}-s$c{reset}, $c{bold}--search$c{reset}        : searches for packages
+  $c{bold}-i$c{reset}, $c{bold}--info$c{reset}          : outputs info for packages
+  $c{bold}-m$c{reset}, $c{bold}--maintainer$c{reset}    : outputs packages maintained by [...]
+  $c{bold}-p$c{reset}, $c{bold}--pkgbuild$c{reset}      : outputs PKGBUILD only
+  $c{bold}-l$c{reset}, $c{bold}--local$c{reset}         : builds and installs packages from `pwd`
+  $c{bold}-u$c{reset}, $c{bold}--sysupgrade$c{reset}    : upgrades installed packages
+  $c{bold}-y$c{reset}, $c{bold}--refresh$c{reset}       : refresh package databases (with: -u)
+  $c{bold}-c$c{reset}, $c{bold}--clean$c{reset}         : clean the cache directory of `$execname` and `pacman`
+  $c{bold}-a$c{reset}, $c{bold}--aur$c{reset}           : only AUR operations (with: -c, -u, -s, -i)
+
+$c{bbgreen}Other options:$c{reset}
+
+      $c{bold}--devel$c{reset}         : update devel packages during -Su
+      $c{bold}--show-ood$c{reset}      : show out-of-date flagged packages during -Su
+      $c{bold}--noinfo$c{reset}        : do not display package info after cloning
+      $c{bold}--nopull$c{reset}        : do not `git pull` new changes
+      $c{bold}--noedit$c{reset}        : do not prompt to edit files
+      $c{bold}--nobuild$c{reset}       : do not build packages (implies --noedit)
+      $c{bold}--noinstall$c{reset}     : do not install packages after building
+      $c{bold}--needed$c{reset}        : do not reinstall up-to-date packages
+      $c{bold}--asdeps$c{reset}        : installs packages as dependencies
+      $c{bold}--asexplicit$c{reset}    : installs packages as explicitly installed
+      $c{bold}--force$c{reset}         : pass the `--force` argument to `pacman`
+      $c{bold}--skipinteg$c{reset}     : pass the `--skipinteg` argument to `makepkg`
+      $c{bold}--noconfirm$c{reset}     : do not ask for any confirmation
+      $c{bold}--movepkg$c{reset}       : move built packages into pacman's cache directory
+      $c{bold}--movepkg-dir=s$c{reset} : move built packages in this directory (with --movepkg)
+      $c{bold}--clone-dir=s$c{reset}   : directory where to clone and build packages
+
+$c{bbgreen}Examples:$c{reset}
+
+    $c{bold}$execname -S  <package>$c{reset}     # install <package>
+    $c{bold}$execname -Ss <keyword>$c{reset}     # search for <keyword>
+    $c{bold}$execname -Si <package>$c{reset}     # show info about <package>
+
+SYNC_HELP
+
+    main_quit();
+}
+
+sub get_help {
+    print <<"GET_HELP";
+$c{bold}usage:$c{reset} $execname {-G --get} [options] [package(s)]
+
+$c{bbgreen}Main options:$c{reset}
+
+    $c{bold}-d$c{reset}, $c{bold}--with-deps$c{reset}     : clones a package with all needed AUR dependencies
+
+$c{bbgreen}Examples:$c{reset}
+
+    $c{bold}$execname -G  <package>$c{reset}     # clones <package>
+    $c{bold}$execname -Gd <package>$c{reset}     # clones <package> along with its AUR dependencies
+
+GET_HELP
+
+    main_quit();
+}
+
+@ARGV or help();
+
+sub version {
+    say "$execname $version";
+    main_quit();
+}
+
+#----------------------- PARSING ARGUMENTS -----------------------#
+sub parse_long_arguments (@args) {
+    Getopt::Long::GetOptionsFromArray(
+        \@args,
+        \%lconfig,
+        map {
+                (defined($lconfig{$_}) and $lconfig{$_} =~ /^[01]\z/) ? $_
+              : ref($lconfig{$_}) ? $_
+              : "$_=s"
+          } keys %lconfig,
+    );
+}
+
+sub parse_short_arguments () {
+    getopts($short_arguments, \%lconfig);
+}
+
+my @keyword_arguments;
+my @leftover_short_arguments;
+my @leftover_long_arguments;
+
+sub parse_arguments (@arguments) {
+
+    my @long_arguments;
+
+    foreach my $arg (@arguments) {
+
+        if ($arg =~ /^--(\w.*)/) {
+            my $option = $1 =~ tr/-/_/r;
+
+            if (exists $lconfig{$option}) {
+                push @long_arguments, "--$option";
+                next;
+            }
+
+            if ($arg =~ /.=/) {
+                my ($argument, $value) = $option =~ /^(.*?)=(.*)/;
+
+                if (exists $lconfig{$argument}) {
+                    $lconfig{$argument} = $value;
+                    next;
+                }
+            }
+        }
+
+        next if $arg =~ /^--?\z/;    # ignore '--' and '-'
+
+        if ($arg =~ /^--/) {
+            push @leftover_long_arguments, $arg;
+        }
+        elsif ($arg =~ /^-/) {
+            push @leftover_short_arguments, $arg;
+        }
+        else {
+            push @keyword_arguments, $arg;
+        }
+    }
+
+    if (@long_arguments) {
+        require Getopt::Long;
+        Getopt::Long::Configure('no_ignore_case');
+        parse_long_arguments(@long_arguments);
+    }
+
+    my @short_arguments = grep { /^-[$short_arguments]/ } @ARGV;
+
+    if (@short_arguments) {
+        local @ARGV = @short_arguments;
+        parse_short_arguments();
+    }
+}
+
+parse_arguments(@ARGV);
+
+if ($lconfig{as_root}) {
+    warn "\n\t\t$c{bred}!!! You are running $c{bbgreen}${execname}$c{reset}$c{bred} as root !!!$c{reset}\n\n" if $lconfig{S};
+}
+
+if ($lconfig{skipinteg}) {
+    $lconfig{makepkg_command} .= ' --skipinteg';
+}
+
+if ($lconfig{noconfirm}) {
+    $Term::UI::AUTOREPLY = 1;
+    $lconfig{makepkg_command} .= ' --noconfirm';
+}
+else {
+    $Term::UI::AUTOREPLY = 0;
+}
+
+# `--asdep` as alias for `--asdeps`
+if ($lconfig{asdep}) {
+    $lconfig{asdeps} = delete $lconfig{asdep};
+}
+
+# `-q` as alias for `--quiet`
+if ($lconfig{q}) {
+    $lconfig{quiet} = delete $lconfig{q};
+}
+
+# `-a` as alias for `--aur`
+if ($lconfig{a}) {
+    $lconfig{aur} = delete $lconfig{a};
+}
+
+if ($lconfig{debug}) {
+    $lconfig{lwp_show_progress} = 1;
+}
+
+if ($lconfig{really_quiet}) {
+    open STDOUT, '>', undef;
+    open STDERR, '>', undef;
+    $lconfig{quiet} = 1;
+}
+
+if ($lconfig{quiet}) {
+    $SIG{__WARN__} = sub { };
+}
+
+if ($lconfig{nocolors}) {
+    %c = map { $_ => q{} } keys %c;
+}
+
+if ($lconfig{movepkg}) {
+    $lconfig{movepkg_dir} = rel2abs($lconfig{movepkg_dir});
+}
+
+if ($lconfig{nobuild}) {
+    $lconfig{noedit}         = 1;
+    $lconfig{recompute_deps} = 0;
+}
+
+$lconfig{clone_dir} = rel2abs($lconfig{clone_dir});
+
+if (not -d $lconfig{clone_dir}) {
+    make_path($lconfig{clone_dir})
+      or error(":: Unable to create directory <<$lconfig{clone_dir}>>: {!$!!}");
+}
+
+if (    $lconfig{sudo_autorepeat_at_runtime}
+    and $lconfig{use_sudo}
+    and !$lconfig{as_root}) {
+    start_sudo_autorepeat();
+}
+
+#----------------------- WORK AREA -----------------------#
+
+# Run-time loaded modules
+require Term::UI;
+require Term::ReadLine;
+require LWP::UserAgent;
+require HTTP::Message;
+
+# Initializing module objects
+my $term = Term::ReadLine->new("$execname $version");
+
+my $lwp = LWP::UserAgent->new(
+                              env_proxy     => $lconfig{lwp_env_proxy},
+                              show_progress => $lconfig{lwp_show_progress},
+                              timeout       => $lconfig{lwp_timeout},
+                              ssl_opts      => {verify_hostname => $lconfig{ssl_verify_hostname}},
+                              agent         => "Mozilla/5.0 (CLI; U; gzip; en-US) $execname/$version",
+                             );
+
+sub format_line ($string, $color) {
+
+    if ($string =~ /^:: (.*)/) {
+
+        my $substr  = $1;
+        my $new_str = $color . '::' . $c{reset} . ' ' . $c{bold};
+
+        $substr =~ s/<<(.*?)>>/$c{bbgreen}$1$c{reset}$c{bold}/gs;
+        $substr =~ s/\{!(.*?)!\}/$c{bred}$1$c{reset}$c{bold}/gs;
+
+        if ($substr =~ /^(.+?: )(.+)/) {
+            $substr = $1 . $c{bgreen} . $2;
+        }
+
+        $new_str .= $substr;
+        $new_str .= $c{reset};
+
+        return $new_str;
+    }
+
+    return $string;
+}
+
+sub msg ($line) {
+    say format_line($line, $c{bblue});
+}
+
+sub note ($line) {
+    warn(format_line($line, $c{bred}) . "\n");
+}
+
+sub error ($line) {
+    die format_line($line, $c{bred});
+}
+
+sub json2perl ($json) {
+    require JSON;
+    JSON::from_json($json);
+}
+
+sub start_sudo_autorepeat () {
+    if (!$sudo_autorepeat_pid) {
+
+        system($lconfig{sudo_command}, '-v');
+
+        my $parent_pid = $$;
+        $sudo_autorepeat_pid = fork;
+
+        # Child process
+        if ($sudo_autorepeat_pid == 0) {
+            while ($parent_pid == getppid) {
+                system($lconfig{sudo_command}, '-v');
+                sleep $lconfig{sudo_autorepeat_interval};
+            }
+            exit;
+        }
+    }
+}
+
+sub get ($url) {
+
+    state $accepted_encodings = HTTP::Message::decodable();
+
+    my $response = $lwp->get($url, 'Accept-Encoding' => $accepted_encodings);
+
+    if ($response->is_success) {
+        my $content = $response->decoded_content;
+
+        if (not defined $content) {
+            note(":: Unable to decode HTML content: $@");
+            return;
+        }
+
+        return $content;
+    }
+
+    return;
+}
+
+sub mirror ($url, $filename) {
+    return $lwp->mirror($url, $filename);
+}
+
+sub get_comments ($id) {
+
+    $id // return;
+    $id =~ /^\d+\z/ or return;
+
+    my $url = sprintf($aur_package_id_url, $id);
+    my $content = get($url) // return;
+
+    require HTML::Entities;
+
+    my @comments;
+    while (
+        $content =~ m{
+            <h4\b.*?>\s*
+                (\S(?-s:.*?))\ commented\ on\ (\d\d\d\d-\d\d-\d\d\ \d\d:\d\d)
+         \s*</h4>\s*
+        <div\b.*?class="article-content">\s*
+            <div>\s*
+                <p>\s*(.*?)\s*</p>\s*
+            </div>\s*
+        </div>
+        }gsix
+      ) {
+
+        my $author  = $1;
+        my $date    = $2;
+        my $comment = $3;
+
+        $comment =~ s{<.*?>}{}gs;
+        $author =~ s{<.*?>}{}gs;
+        $comment = HTML::Entities::decode_entities($comment);
+        $comment =~ s/\h{2,}/ /g;
+
+        unshift @comments, <<"EOC"
+$c{cblack}$c{byellow}Comment by: $c{bbgreen}$author$c{reset}$c{cblack}$c{byellow} on $date$c{reset}
+$comment
+EOC
+    }
+    return @comments;
+}
+
+sub get_pacman_arguments ($full, @options) {
+
+    my @args = ($full ? (@leftover_short_arguments, @leftover_long_arguments) : ());
+
+    foreach my $option (@options) {
+        push(@args, '--' . $option) if $lconfig{$option};
+    }
+
+    return @args;
+}
+
+sub execute_pacman_command ($needs_root, @cmd) {
+
+    my $pacman_command = join(
+        q{ },
+        do {
+            my %seen;
+            grep { !$seen{$_}++ } map { quotemeta($_) } $lconfig{pacman_command}, @cmd;
+          }
+    );
+
+    if (    $needs_root
+        and $lconfig{sudo_autorepeat}
+        and $lconfig{use_sudo}
+        and !$lconfig{as_root}) {
+        start_sudo_autorepeat();
+    }
+
+    my $user_pacman_command = (
+                                 $needs_root
+                               ? $lconfig{use_sudo}
+                                     ? "$lconfig{sudo_command} $pacman_command"
+                                     : qq{$lconfig{su_command} "$pacman_command"}
+                               : $pacman_command
+                              );
+
+    msg(":: Pacman command: " . ($user_pacman_command =~ s/\\(.)/$1/gr)) if $lconfig{debug};
+    {
+        system($lconfig{as_root} ? $pacman_command : $user_pacman_command);
+        if ($? and $needs_root) {
+            note(":: Exit code: " . ($? >> 8)) if $lconfig{debug};
+            $term->ask_yn(prompt => "=>> Try again?", default => 'n') and redo;
+        }
+    }
+    return $? ? 0 : 1;
+}
+
+sub is_available_in_pacman_repo ($pkgname) {
+    $pkgname =~ /^\w/ or return 0;
+    system "/usr/bin/pacman -Sp \Q$pkgname\E &> /dev/null";
+    my $exit_code = $?;
+    $? = 0;
+    return $exit_code ? 0 : 1;
+}
+
+sub package_is_installed ($pkgname) {
+    my $regex = qr{^\Q$pkgname\E-([^-]+-\d+)\z};
+
+    opendir(my $dir_h, $lconfig{pacman_local_dir}) or return;
+
+    while (defined(my $dir = readdir($dir_h))) {
+        if ($dir =~ $regex) {
+            closedir $dir_h;
+            return $1;
+        }
+    }
+
+    closedir $dir_h;
+    return;
+}
+
+sub versioncmp ($v1, $v2) {
+
+    # Support for `epoch`
+    my ($e1) = $v1 =~ s/^([0-9]+)://;
+    my ($e2) = $v2 =~ s/^([0-9]+)://;
+
+    $e1 ||= 0;
+    $e2 ||= 0;
+
+    if ($e1 != $e2) {
+        return ($e1 <=> $e2);
+    }
+
+    # Code from Sort::Versions
+    # http://search.cpan.org/~edavis/Sort-Versions-1.5/Versions.pm
+
+    my (@A) = $v1 =~ /([-.]|\d+|[^-.\d]+)/g;
+    my (@B) = $v2 =~ /([-.]|\d+|[^-.\d]+)/g;
+
+    my ($A, $B);
+    while (@A and @B) {
+        $A = shift @A;
+        $B = shift @B;
+
+        if ($A eq q{-} and $B eq q{-}) {
+            next;
+        }
+        elsif ($A eq q{-}) {
+            return -1;
+        }
+        elsif ($B eq q{-}) {
+            return 1;
+        }
+        elsif ($A eq q{.} and $B eq q{.}) {
+            next;
+        }
+        elsif ($A eq q{.}) {
+            return -1;
+        }
+        elsif ($B eq q{.}) {
+            return 1;
+        }
+        elsif ($A =~ /^\d+$/ and $B =~ /^\d+$/) {
+            if ($A =~ /^0/ or $B =~ /^0/) {
+                return $A cmp $B if $A cmp $B;
+            }
+            else {
+                return $A <=> $B if $A <=> $B;
+            }
+        }
+        else {
+            $A = uc $A;
+            $B = uc $B;
+            return $A cmp $B if $A cmp $B;
+        }
+    }
+
+    return @A <=> @B;
+}
+
+sub array_ref_or_string ($data) {
+    ref($data) eq 'ARRAY'
+      ? (grep { defined($_) and $_ ne '' } @$data)
+      : ($data // 'None');
+}
+
+sub strip_space ($string) {
+    $string // return '';
+    $string =~ s/^\s+//;
+    return unpack 'A*', $string;
+}
+
+sub strip_version ($version) {
+    $version =~ s/\s*[<=>]=?.+//sg;
+    return strip_space($version);
+}
+
+sub parse_package_name_and_version ($pkgname) {
+
+    if ($pkgname =~ /^(.*?)([<=>]=?)(.*)/) {
+        return ($1, $2, $3);
+    }
+
+    return ($pkgname, undef, undef);
+}
+
+sub indent_array (@elems) {
+    my $first = strip_space(shift(@elems));
+
+    @elems or return $first;
+
+    my $rest = join("\n", @elems);
+    $rest =~ s/^\s+//gm;
+    $rest =~ s/^/' ' x 18/gem;
+
+    return "$first\n$rest";
+}
+
+sub info_for_package ($pkgname) {
+
+    my $info = get_rpc_info($pkgname) // return;
+
+    if (ref($info->{results}) ne 'ARRAY') {
+        note(":: Unable to get info for package: $pkgname") if $lconfig{debug};
+        return;
+    }
+
+    $info->{resultcount} > 0 or return;
+
+    if ($info->{resultcount} > 1) {
+        msg(":: Found <<$info->{resultcount}>> packages.");
+        print "\n";
+        my @packages = map { $_->{Name} } @{$info->{results}};
+        my %table = (map { $packages[$_] => $_ } 0 .. $#packages);
+        my $reply = $term->get_reply(
+                                     print_me => "\n=>> Select which packages to install",
+                                     prompt   => 'Select',
+                                     choices  => \@packages,
+                                     default  => $packages[0],
+                                    );
+        $info = $info->{results}[$table{$reply}];
+    }
+    else {
+        $info = $info->{results}[0];
+    }
+
+    return $info;
+}
+
+sub download_package ($pkgname, $path) {
+
+    my $info = info_for_package($pkgname) // return;
+
+    my $pkg_base = $info->{PackageBase};
+    my $git_url  = "$aur_base_url/$pkg_base.git";
+    my $dir_name = rel2abs(catdir($path, $pkg_base));
+
+    if ((-d $dir_name) and (-d catdir($dir_name, '.git'))) {
+
+        my $pkgbuild_prev = catfile($dir_name, '.git', '.PKGBUILD');
+        my $pkgbuild_curr = catfile($dir_name, 'PKGBUILD');
+
+        my $old_pkgbuild_content = do {
+            if (open my $fh, '<', $pkgbuild_curr) {
+                local $/;
+                <$fh>;
+            }
+            else {
+                undef;
+            }
+        };
+
+        if (!$lconfig{nopull}) {
+#<<<
+            system('/usr/bin/git', '-C', $dir_name, 'reset', '--hard', 'HEAD', ($lconfig{quiet} ? ('-q') : ())) && return;
+            system('/usr/bin/git', '-C', $dir_name, 'pull',  '--ff',           ($lconfig{quiet} ? ('-q') : ())) && return;
+#>>>
+        }
+
+        if (defined($old_pkgbuild_content) and open(my $fh, '>', $pkgbuild_prev)) {
+
+            print {$fh} $old_pkgbuild_content;
+            close $fh;
+
+            chomp(my $diff = `/usr/bin/diff --color=always -w -B -a -d \Q$pkgbuild_prev\E \Q$pkgbuild_curr\E`);
+
+            if ($diff ne '') {
+                say '';
+                msg(":: PKGBUILD diff for <<$info->{Name}>>");
+                say decode_utf8($diff);
+            }
+        }
+    }
+    else {
+
+        # Clone the build files
+        system('/usr/bin/git', '-C', $path, 'clone',
+               ($lconfig{git_clone_depth} > 0 ? "--depth=$lconfig{git_clone_depth}" : ()),
+               ($lconfig{quiet} ? ('-q') : ()), $git_url)
+          && return;
+    }
+
+    if ($lconfig{debug}) {
+        msg(":: Changing directory to: $path");
+    }
+
+    chdir($path) or do {
+        note(":: Unable to chdir() to <<$path>>: {!$!!}");
+        return;
+    };
+
+    if ($lconfig{debug}) {
+        msg(":: Trying to change directory to: $dir_name");
+    }
+
+    $info->{_localpath} = $dir_name;    # directory that contains the PKGBUILD
+
+    if (-d $dir_name) {
+
+        chdir($dir_name) or do {
+            note(":: Unable to chdir() to <<$dir_name>>: {!$!!}");
+            return;
+        };
+
+        msg(":: Changed directory successfully to: $dir_name") if $lconfig{debug};
+    }
+
+    return $info;
+}
+
+sub get_rpc_info ($pkgname) {
+    json2perl(get("$aur_rpc_base_url?v=$AUR_V&type=info&arg=" . uri_escape_utf8($pkgname)) // return);
+}
+
+sub show_info ($info) {
+
+    say map { sprintf $c{bold} . $_->[0], $c{reset} . $_->[1] }
+      ["Repository      : %s\n", "$c{bpurple}AUR$c{reset}"],
+      ["Name            : %s\n", "$c{bold}$info->{Name}$c{reset}"],
+      ["Version         : %s\n", $info->{Version} // 'Unknown'],
+      ["Maintainer      : %s\n", $info->{Maintainer} // "$c{bred}None$c{reset}"],
+      ["URL             : %s\n", $info->{URL}],
+      ["AUR URL         : %s\n", sprintf($aur_package_id_url, $info->{ID})],
+      ["License         : %s\n", indent_array(array_ref_or_string($info->{License}))],
+      ["Votes           : %s\n", $info->{NumVotes}],
+      ["Popularity      : %s\n", sprintf("%.2g%%", $info->{Popularity})],
+      ["Installed       : %s\n", package_is_installed($info->{Name}) ? "$c{bbgreen}Yes$c{reset}" : 'No'],
+      ["Out Of Date     : %s\n", $info->{OutOfDate} ? "$c{bred}Yes$c{reset}" : 'No'],
+      ["Depends On      : %s\n", indent_array(array_ref_or_string($info->{Depends}))],
+      ["Make Deps       : %s\n", indent_array(array_ref_or_string($info->{MakeDepends}))],
+      ["Check Deps      : %s\n", indent_array(array_ref_or_string($info->{CheckDepends}))],
+      ["Optional Deps   : %s\n", indent_array(array_ref_or_string($info->{OptDepends}))],
+      ["Provides        : %s\n", indent_array(array_ref_or_string($info->{Provides}))],
+      ["Conflicts With  : %s\n", indent_array(array_ref_or_string($info->{Conflicts}))],
+      ["Replaces        : %s\n", indent_array(array_ref_or_string($info->{Replaces}))],
+      ["Package Base    : %s\n", $info->{PackageBase}],
+      ["Last Update     : %s\n", scalar localtime($info->{LastModified} || $info->{FirstSubmitted})],
+      ["Description     : %s\n", $info->{Description}];
+
+    return 1;
+}
+
+sub find_local_package ($pkgname, $dir) {
+
+    my $newest_package;
+
+    opendir(my $dir_h, $dir)
+      or do {
+        note(":: Cannot access directory <<$dir>>: {!$!!}");
+        return;
+      };
+
+    while (defined(my $file = readdir $dir_h)) {
+        if ($file =~ m{^\Q$pkgname\E$pkg_suffix_re}) {
+
+            # When there exists more than one built packages, get the latest one built
+            if (defined $newest_package) {
+                if ((-M "$dir/$file") < (-M $newest_package)) {
+                    $newest_package = "$dir/$file";
+                }
+            }
+
+            # When $newest_package is undefined, assign the first package found
+            else {
+                $newest_package = "$dir/$file";
+            }
+        }
+    }
+
+    closedir $dir_h;
+    return $newest_package;
+}
+
+sub move_built_package ($pkg) {
+    my $pkg_tarball = find_local_package($pkg, rel2abs(curdir())) // return;
+
+    if (not -d $lconfig{movepkg_dir}) {
+        make_path($lconfig{movepkg_dir})
+          or note(":: Unable to create $lconfig{movepkg_dir}: {!$!!}");
+    }
+    if (-d $lconfig{movepkg_dir}) {
+        if (-w _) {
+
+            require File::Copy;
+            require File::Basename;
+
+            msg(":: Moving $pkg_tarball into $lconfig{movepkg_dir}") if $lconfig{debug};
+            File::Copy::move($pkg_tarball, catfile($lconfig{movepkg_dir}, File::Basename::basename($pkg_tarball)))
+              or note(":: Unable to move $pkg into $lconfig{movepkg_dir}: {!$!!}");
+        }
+        else {
+            msg(":: Moving `${pkg_tarball}' into `$lconfig{movepkg_dir}'");
+
+            system($lconfig{use_sudo}
+                   ? "$lconfig{sudo_command} mv '${pkg_tarball}' '$lconfig{movepkg_dir}'"
+                   : qq{$lconfig{su_command} 'mv \Q$pkg_tarball\E \Q$lconfig{movepkg_dir}\E'}
+                  );
+
+            if ($?) {
+                note(":: Unable to move package <<$pkg>> into <<$lconfig{movepkg_dir}>> -- exit code: " . ($? >> 8));
+                if ($term->ask_yn(prompt => "=>> Do you want to try again?", default => 'n')) {
+                    move_built_package($pkg);
+                }
+            }
+            else {
+                msg(":: Package <<$pkg>> has been successfully moved into <<$lconfig{movepkg_dir}>>.");
+            }
+        }
+    }
+}
+
+sub output_file_content ($file) {
+
+    open my $fh, '<:utf8', $file or do {
+        note(":: Unable to open <<$file>> for read: {!$!!}");
+        return;
+    };
+
+    say '';
+    msg(":: Content of <<$file>>");
+    say '';
+
+    eval {
+        local $/ = undef;
+        my $content = <$fh>;
+        $content = reverse($content);
+        $content =~ s/^\s+//;
+        say scalar reverse($content) . "\n";
+    };
+
+    $@ && return;
+
+    close $fh;
+    return 1;
+}
+
+sub recompute_dependencies ($info) {
+
+    msg(":: Recomputing dependencies...") if $lconfig{debug};
+
+    my @srcinfo = map { decode_utf8($_) } `/usr/bin/makepkg --printsrcinfo`;
+
+    if ($?) {
+        note(":: `makepkg --printsrcinfo` exited with code: " . ($? >> 8));
+        return;
+    }
+
+    my %data;
+    foreach my $line (@srcinfo) {
+        if ($line =~ /^\s*(\w+)\s*=\s*(.*\S)/) {
+            my ($key, $value) = ($1, $2);
+
+            # Build the package (again)
+            if ($key eq 'pkgname') {
+                $already_built{$value} = 0;
+            }
+
+            push @{$data{$key}}, $value;
+        }
+    }
+
+    my %pairs = (
+                 Depends      => 'depends',
+                 License      => 'license',
+                 MakeDepends  => 'makedepends',
+                 OptDepends   => 'optdepends',
+                 Provides     => 'provides',
+                 Conflicts    => 'conflicts',
+                 CheckDepends => 'checkdepends',
+                );
+
+    while (my ($key1, $key2) = each %pairs) {
+        $info->{$key1} = $data{$key2};
+    }
+
+    return 1;
+}
+
+sub edit_text_files ($info) {
+
+    foreach my $file (sort grep { -f and not -z _ } glob('*')) {
+
+        next if substr($file, -1) eq q{~};       # ignore backup (~) files
+        next if substr($file, -4) eq q{.bak};    # ignore backup (.bak) files
+        next if substr($file, 0, 1) eq q{.};     # ignore hidden files
+
+        # Ignore files larger than 50 KB, and are not PKGBUILD or *.install
+        if (
+            ((-s $file) > 50 * 1024 or not -T _)
+            and not(   $file eq 'PKGBUILD'
+                    or $file =~ /(?:^|\.)install\z/)
+          ) {
+            next;
+        }
+
+        if ($lconfig{show_build_files_content}) {
+            output_file_content($file);
+        }
+
+        #if ($term->ask_yn(prompt => "=>> Do you want to edit $file?", default => 'n')) {
+
+        #    system $editor, rel2abs($file);
+
+        #    if ($?) {
+        #        note(":: $editor exited with code: " . ($? >> 8));
+        #        return;
+        #    }
+        #}
+    }
+
+    return 1;
+}
+
+sub run_makepkg_command ($pkg, @args) {
+
+    system join(' ', $lconfig{makepkg_command}, @args);
+
+    if ($?) {
+        note(":: Unable to build <<$pkg>> - makepkg exited with code: " . ($? >> 8));
+        #if ($term->ask_yn(prompt => "=>> Do you want to try again?", default => 'n')) {
+        #    local $lconfig{nopull} = 1;
+        #    delete $seen_package{$pkg};
+        #    install_package($pkg);
+        #}
+        #else {
+        #    if ($term->ask_yn(prompt => "=>> Do you want to exit now?", default => 'y')) {
+        #        exit 65;    # Package not installed
+        #    }
+        #    else {
+        #        return;
+        #    }
+        #}
+        
+        exit 65;    # Package not installed
+    }
+
+    return 1;
+}
+
+sub install_local_package (@) {
+    my ($pkg, @pacman_argvs) = @_;
+
+    my $pkg_tarball = find_local_package($pkg, rel2abs(curdir())) // do {
+        note(":: Unable to find a built tarball for <<$pkg>>");
+        $? = 2 << 8;
+        return;
+    };
+
+    if ($lconfig{noinstall}) {
+        if ($lconfig{movepkg}) {
+            move_built_package($pkg);
+            return 1;
+        }
+        return 1;
+    }
+
+    return 1 if $already_installed{$pkg};
+
+    if (execute_pacman_command(1, $pkg_tarball, @pacman_argvs)) {
+        $already_installed{$pkg} = 1;
+        if ($lconfig{movepkg}) {
+            move_built_package($pkg);
+        }
+        return 1;
+    }
+
+    return;
+}
+
+sub install_built_package ($pkg, @args) {
+
+    if ($lconfig{install_built_with_noconfirm}) {
+        push @args, '--noconfirm';
+    }
+
+    # Install the package
+    install_local_package($pkg, q{-U}, @args) || return;
+
+    # Don't ask for split packages in `--noinstall` mode
+    # or when `split_packages` is set to a false value.
+    ($lconfig{noinstall} || !$lconfig{split_packages}) && return 1;
+
+    # Get the list of all built packages
+    chomp(my @packagelist = map { decode_utf8($_) } `/usr/bin/makepkg --packagelist`);
+
+    my @packages;
+    foreach my $name (@packagelist) {
+        if ("$name.pkg.tar.gz" =~ /^(.*?)$pkg_suffix_re/o) {
+            my $basename = $1;
+            next if $basename eq $pkg;
+            $already_built{$basename} = 1;
+            push @packages, $basename;
+        }
+    }
+
+    @packages = do {
+        my %seen;
+        grep { !$seen{$_}++ } @packages;
+    };
+
+    # If the list contains more built packages, then ask the user
+    # if he wants to install some other packages from this group.
+    if (@packages) {
+
+        say '';
+        msg(":: This group contains <<" . scalar(@packages) . ">> more packages:");
+        say join("\n", map { "\t$_" } @packages), "\n";
+
+        if (
+            $term->ask_yn(prompt  => '=>> Do you want to install more packages from this group?',
+                          default => 'n')
+          ) {
+            my @reply = $term->get_reply(
+                                         print_me => "\n=>> Select which packages to install",
+                                         prompt   => 'Install',
+                                         choices  => \@packages,
+                                         default  => \@packages,
+                                         multi    => 1,
+                                        );
+
+            # Install the selected packages
+            foreach my $name (@reply) {
+                install_local_package($name, q{-U}, @args);
+            }
+        }
+    }
+
+    return 1;
+}
+
+sub build_and_install_package ($pkg, @args) {
+
+    if ($lconfig{nobuild}) {
+        if ($lconfig{noinstall}) {
+            $already_installed{$pkg} = 1;
+            return 1;
+        }
+        $already_built{$pkg} = 1;
+        return install_built_package($pkg, @args);
+    }
+
+    # Check to see if the current package was
+    # already built, so we don't build it twice.
+    if ($already_built{$pkg}) {
+        return install_built_package($pkg, @args);
+    }
+
+    #
+    ## Concept for installing packages directly with `makepkg`.
+    ## However, this concept cannot install individual parts of a split package.
+    ## See: https://github.com/trizen/trizen/issues/6
+    #
+#<<<
+    #~ if (not $lconfig{noinstall}) {
+        #~ push @args, '--install';
+    #~ }
+
+    #~ if ($lconfig{noconfirm}) {
+        #~ push @args, '--noconfirm';
+    #~ }
+
+    #~ if ($lconfig{needed}) {
+        #~ push @args, '--needed';
+    #~ }
+
+    #~ if (run_makepkg_command($pkg, @args)) {
+        #~ $already_built{$pkg} = 1;
+        #~ move_built_package($pkg) if $lconfig{movepkg};
+        #~ return 1;
+    #~ }
+#>>>
+
+    # Build the package and install/move it
+    if (run_makepkg_command($pkg)) {
+        $already_built{$pkg} = 1;    # mark the package as built
+        return install_built_package($pkg, @args);
+    }
+
+    return;
+}
+
+sub _is_lib32 ($pkg) {
+    if ($arch ne 'x86_64') {
+        return 1 if $pkg =~ /^lib32-\w/;
+    }
+    return;
+}
+
+sub install_package ($pkg) {
+
+    # Avoid circular dependencies
+    if ($seen_package{$pkg}) {
+        return 1;
+    }
+
+    # Mark as seen
+    local $seen_package{$pkg} = 1;
+
+    msg(":: Current directory is: " . rel2abs(curdir())) if $lconfig{debug};
+
+    my $info = download_package($pkg, $lconfig{clone_dir});
+    if (ref($info) eq 'HASH') {
+        msg(":: Package <<$pkg>> exists in AUR!") if $lconfig{debug};
+    }
+    elsif (not($lconfig{aur}) and is_available_in_pacman_repo($pkg)) {
+
+        msg(":: Package <<$pkg>> is available in pacman's repository...") if $lconfig{debug};
+
+        my @args = ('-S', get_pacman_arguments(0, qw(noconfirm force needed quiet)), @leftover_long_arguments);
+
+        if ($lconfig{asdeps}) {
+            push @args, '--asdeps';
+        }
+        elsif ($lconfig{asexplicit}) {
+            push @args, '--asexplicit';
+        }
+
+        return execute_pacman_command(1, @args, $pkg);
+    }
+    else {
+        note(":: Package not found: $pkg");
+        $? = 1 << 8;
+        return;
+    }
+
+    if (my $version = package_is_installed($pkg)) {
+
+        msg(":: Package <<$pkg>> is already installed!") if $lconfig{debug};
+
+        if ($lconfig{needed}) {
+            if (versioncmp($version, $info->{Version}) >= 0) {
+                msg(":: Package <<$pkg>> is installed and up-to-date -- skipping");
+                return 1;    # package is installed and up-to-date
+            }
+            else {
+                note(":: Package <<$pkg>> is {!out-of-date!}!") if $lconfig{debug};
+            }
+        }
+    }
+
+    say '';
+    msg(":: Package: $info->{Name}");
+    msg(":: AUR URL: " . sprintf($aur_package_id_url, $info->{ID}));
+
+    my @args = get_pacman_arguments(0, qw(noconfirm force needed));
+
+    # Package will be installed as dependency
+    if ($lconfig{asdeps}) {
+        msg(":: Package <<$pkg>> will be installed as dependency...") if $lconfig{debug};
+        push @args, '--asdeps';
+    }
+
+    # Package will be explicitly installed
+    elsif ($lconfig{asexplicit}) {
+        msg(":: Package <<$pkg>> will be explicitly installed...") if $lconfig{debug};
+        push @args, '--asexplicit';
+    }
+
+    # When a package is already built, install it without building it again.
+    if ($already_built{$pkg}) {
+        msg(":: Package <<$pkg>> is already built -- installing") if $lconfig{debug};
+        return install_built_package($pkg, @args);
+    }
+
+    if ($lconfig{show_comments}) {
+        say "\n", join("\n", get_comments($info->{ID}));
+    }
+
+    # Edit PKGBUILD and other -T files
+    if (not $lconfig{noedit}) {
+        edit_text_files($info);
+    }
+
+    say '';
+
+    # Recompute dependencies
+    if ($lconfig{recompute_deps}) {
+        recompute_dependencies($info);
+    }
+
+    # Display package info
+    if (not $lconfig{noinfo}) {
+        show_info($info);
+    }
+
+    foreach my $pkgname (
+        grep { defined($_) && /^\w/ }
+
+        # Makedepends
+        (exists($info->{MakeDepends}) ? @{$info->{MakeDepends}} : ()),
+
+        # Depends
+        (exists($info->{Depends}) ? @{$info->{Depends}} : ()),
+      ) {
+
+        my ($name, $cmp, $version) = parse_package_name_and_version($pkgname);
+
+        if (_is_lib32($name)) {
+            msg(":: Ignoring lib32-* package arch '$arch': $name") if $lconfig{debug};
+            next;
+        }
+
+        my $is_up_to_date = 0;
+        my $local_version = package_is_installed($name);
+
+        if (defined($local_version) and defined($version)) {
+            if ($cmp eq '<') {
+                if (versioncmp($local_version, $version) < 0) {
+                    $is_up_to_date = 1;
+                }
+            }
+            elsif ($cmp eq '<=') {
+                if (versioncmp($local_version, $version) <= 0) {
+                    $is_up_to_date = 1;
+                }
+            }
+            elsif ($cmp eq '>') {
+                if (versioncmp($local_version, $version) > 0) {
+                    $is_up_to_date = 1;
+                }
+            }
+            elsif ($cmp eq '>=') {
+                if (versioncmp($local_version, $version) >= 0) {
+                    $is_up_to_date = 1;
+                }
+            }
+            elsif ($cmp eq '=' or $cmp eq '==') {
+                if (versioncmp($local_version, $version) == 0) {
+                    $is_up_to_date = 1;
+                }
+            }
+        }
+
+        if ($already_installed{$name} or (defined($local_version) ? defined($version) ? $is_up_to_date : 1 : 0)) {
+            msg(":: Dependency <<$name>> is already installed -- skipping") if $lconfig{debug};
+        }
+        elsif (is_available_in_pacman_repo($name)) {
+            msg(":: Dependency <<$name>> is available in pacman's repository -- skipping") if $lconfig{debug};
+        }
+        else {
+
+            # Check to see if the dependency is already provided by some other installed package.
+            if (not defined($local_version)) {    # dependency is not installed
+
+                chomp(my $deptest = `/usr/bin/pacman -T \Q$name\E`);
+
+                if ($deptest eq '') {
+                    msg(":: Dependency <<$name>> is provided by other package -- skipping") if $lconfig{debug};
+                    next;
+                }
+            }
+
+            msg(":: Trying to install dependency: <<$name>>") if $lconfig{debug};
+
+            # Activate `dependency` mode
+            local $lconfig{asdeps} = 1;
+
+            install_package($name) or do {
+                note(":: Dependency not found: <<$name>>");
+                next;
+            };
+        }
+    }
+
+    chdir($info->{_localpath});
+
+    msg(":: Current directory is: " . rel2abs(curdir())) if $lconfig{debug};
+    msg(":: Building and installing <<$pkg>>...") if $lconfig{debug};
+
+    return build_and_install_package($pkg, @args);
+}
+
+sub clean_cache () {
+
+    if (!$lconfig{aur}) {
+        execute_pacman_command(1, get_pacman_arguments(1, qw(sync clean noconfirm force quiet)));
+    }
+
+    opendir(my $dir_h, $lconfig{clone_dir})
+      or error(":: Cannot access the AUR clone directory: {!$!!}");
+
+    if ($lconfig{clone_dir} !~ m{^/tmp/}) {
+        $term->ask_yn(prompt  => "=> Do you want to remove the content of $c{bold}$lconfig{clone_dir}$c{reset}?",
+                      default => 'n')
+          || return;
+    }
+
+    msg(":: Removing the content of <<$lconfig{clone_dir}>>...");
+
+    foreach my $name (readdir($dir_h)) {
+
+        next if substr($name, 0, 1) eq '.';    # skip dot files
+        next if $name !~ /^[a-z0-9\-_+]+\z/;   # validate directory name
+
+        my $dir = catdir($lconfig{clone_dir}, $name);
+
+        if (-d $dir and -d catdir($dir, '.git')) {
+            msg(":: Removing <<$dir>>...") if $lconfig{debug};
+            rmtree($dir) or note(":: Cannot remove directory <<$dir>>: {!$!!}");
+        }
+    }
+
+    closedir($dir_h);
+    msg(":: Done!");
+}
+
+sub print_aur_results (@results) {
+
+    foreach my $result (sort { $a->{Name} cmp $b->{Name} } @results) {
+
+        if ($lconfig{quiet}) {
+            say $result->{Name};
+            next;
+        }
+
+        # Compare installed version with AUR version
+        my $is_installed_string = $lconfig{aur_results_show_installed}
+          ? do {
+            my $installed_version = package_is_installed($result->{Name});
+
+            defined($installed_version)
+              ? versioncmp($installed_version, $result->{Version}) >= 0
+                  ? " [$c{bgreen}installed$c{reset}]"
+                  : " [$c{bold}installed$c{reset}: $c{bred}$installed_version$c{reset}]"
+              : q{};
+          }
+          : q{};
+
+        # Formatting string
+        my $result_string = "$c{bpurple}aur$c{reset}/$c{bold}%s$c{reset} $c{bblue}%s$c{reset}%s%s%s%s%s%s\n    %s\n";
+
+        # Normalize the popularity percentage
+        $result->{Popularity} = sprintf("%.2g", $result->{Popularity});
+
+#<<<
+        # Print formatted output
+        printf $result_string,
+          $result->{Name},
+          $result->{Version},
+          $is_installed_string,
+          ($result->{OutOfDate}             ? " [$c{bred}out-of-date$c{reset}]"            : q{}),
+          (!$result->{Maintainer}           ? " [$c{bred}unmaintained$c{reset}]"           : q{}),
+          ($lconfig{aur_results_votes}      ? " [$c{bold}$result->{NumVotes}+$c{reset}]"   : q{}),
+          ($lconfig{aur_results_popularity} ? " [$c{bold}$result->{Popularity}%$c{reset}]" : q{}),
+          (
+            $lconfig{aur_results_last_modified}
+            ? localtime($result->{LastModified}) =~ /^\w+ (\w+)\s+(\d+)\s+.+? (\d+)$/ && " [$c{bold}$2 $1 $3$c{reset}]"
+            : q{}
+          ),
+          ($result->{Description} // 'No description available...'),
+        ;
+#>>>
+    }
+
+    return 1;
+}
+
+sub search_aur_packages (@keywords) {
+
+    if (not $lconfig{aur}) {
+        execute_pacman_command(0, get_pacman_arguments(1, qw(sync quiet search)), @keywords);
+    }
+
+    my @all_results;
+    foreach my $key (map { uri_escape_utf8($_) } grep { length() > 1 } @keywords) {
+        push @all_results, json2perl(get("$aur_rpc_base_url?v=$AUR_V&type=search&arg=$key") // next);
+    }
+
+    my %seen;
+    my @keys_re = map { qr/\Q$_\E/i } @keywords;
+
+    my @matched_results;
+    foreach my $results (@all_results) {
+
+        ref($results->{results}) eq 'ARRAY' or next;
+
+        foreach my $result (@{$results->{results}}) {
+            next if $seen{$result->{Name}}++;
+
+#<<<
+            next if any {
+                      not(($result->{Name}        // '') =~ $_)
+                  and not(($result->{Description} // '') =~ $_)
+            } @keys_re;
+#>>>
+
+            push @matched_results, $result;
+        }
+    }
+
+    $? = 0 if @matched_results;
+    print_aur_results(@matched_results);
+}
+
+sub list_aur_maintainer_packages ($maintainer) {
+    my $results = json2perl(get("$aur_rpc_base_url?v=$AUR_V&type=msearch&arg=$maintainer") // return);
+    ref($results->{results}) eq 'ARRAY' or return;
+    my @maintainers_packages = @{$results->{results}};
+    @maintainers_packages || return;
+    print_aur_results(@maintainers_packages);
+}
+
+sub update_local_packages () {
+
+    if (not $lconfig{aur}) {
+        execute_pacman_command(1, get_pacman_arguments(1, qw(sync noconfirm force quiet refresh upgrades)));
+    }
+
+    my %packages;
+    open my $pipe_h, '-|:utf8', '/usr/bin/pacman', '-Qm';
+    while (defined(my $line = <$pipe_h>)) {
+        my ($package, $version) = split(' ', $line);
+        $packages{$package} = $version;
+    }
+    close $pipe_h;
+
+    # Get info only for a random subset of 150 packages to avoid the "Request-URI too large" error.
+    my @subset = do {
+        my @list = grep { not exists $ignored_pkgs{$_} } keys %packages;
+        sort splice(@list, 0, 150);
+    };
+
+    my %exists_in_aur;
+    @exists_in_aur{@subset} = ();
+
+    my $pkgs_query = join('&', map { 'arg[]=' . uri_escape_utf8($_) } @subset);
+
+    my $multiinfo = json2perl(
+        get("$aur_rpc_base_url?v=$AUR_V&type=multiinfo&$pkgs_query") // do {
+            note(":: Unable to get info for local packages...");
+            $? = 1 << 8;
+            return;
+          }
+    );
+
+    ref($multiinfo->{results}) eq 'ARRAY' or return;
+
+    my @packages_for_update;
+
+    foreach my $hash_ref (@{$multiinfo->{results}}) {
+
+        ref($hash_ref) eq 'HASH' or next;
+
+        my $pkgname = $hash_ref->{Name};
+        my $version = $hash_ref->{Version};
+
+        $exists_in_aur{$pkgname} = 1;
+
+        if ($lconfig{show_ood} and $hash_ref->{OutOfDate}) {
+            note(":: Package <<$pkgname>> has been flagged {!out-of-date!}!");
+        }
+
+        if ($lconfig{show_unmaintained} and not $hash_ref->{Maintainer}) {
+            note(":: Package <<$pkgname>> is {!unmaintained!}!");
+        }
+
+        my $is_devel_pkg = $lconfig{devel}
+          && $pkgname =~ /-(?:git|svn|bzr|cvs|hg|darcs|nightly(?:|[-_].+))\z/;
+
+        if (versioncmp($packages{$pkgname}, $version) == -1 or $is_devel_pkg) {
+            push @packages_for_update, {name => $pkgname, version => $version};
+        }
+        elsif ($version ne $packages{$pkgname}) {
+            note(  ":: Package <<$pkgname>> has a different version in AUR!"
+                 . " ({!$packages{$pkgname}!} != <<$version$c{reset}>>)")
+              if $lconfig{debug};
+        }
+    }
+
+    # Notify when a package is not found in AUR
+    # https://github.com/trizen/trizen/issues/24
+    if ($lconfig{show_inexistent}) {
+        foreach my $pkgname (@subset) {
+            if (not $exists_in_aur{$pkgname}) {
+                note(":: Package <<$pkgname>> was {!not found!} in AUR -- skipping");
+            }
+        }
+    }
+
+    my $max_pkgname_width = 0;
+    my $max_version_width = 0;
+
+    foreach my $package (@packages_for_update) {
+
+        my $pkgname = $package->{name};
+
+        my $pkgname_len = length($pkgname);
+        my $version_len = length($packages{$pkgname});
+
+        if ($pkgname_len > $max_pkgname_width) {
+            $max_pkgname_width = $pkgname_len;
+        }
+
+        if ($version_len > $max_version_width) {
+            $max_version_width = $version_len;
+        }
+    }
+
+    my %for_update;
+
+    foreach my $i (0 .. $#packages_for_update) {
+
+        my $package = $packages_for_update[$i];
+
+        my $pkgname = $package->{name};
+        my $version = $package->{version};
+
+        $for_update{$i + 1} = $pkgname;
+        $for_update{$pkgname} = $pkgname;
+
+        printf(
+             "$c{bblue}%2s$c{reset}. $c{bold}%*s$c{reset}: $c{bred}%*s$c{reset} $c{bold}==>$c{reset} $c{bbgreen}%s$c{reset}\n",
+             $i + 1, $max_pkgname_width, $pkgname, $max_version_width, $packages{$pkgname}, $version);
+    }
+
+    # When piped in interactive mode, just return.
+    # e.g.: trizen -Su --aur | wc -l
+    if (not $lconfig{noconfirm} and not $stdout_on_tty) {
+        return 1;
+    }
+
+    my @selected_packages;
+
+    if (keys %for_update) {
+
+        my $reply = (
+                     $lconfig{noconfirm}
+                     ? 'all'
+                     : $term->readline("\n=>> Select packages for upgrade (default: all)\n>$c{reset} ")
+                    );
+
+        if ($reply eq 'all' or $reply eq '') {
+            @selected_packages = map { $_->{name} } @packages_for_update;
+        }
+        else {
+            @selected_packages = map { $for_update{$_} } grep { exists $for_update{$_} } split(/[,\s]+/, $reply);
+        }
+    }
+    else {
+        msg(":: No AUR updates found!");
+        return 1;
+    }
+
+    foreach my $pkgname (@selected_packages) {
+        if (install_package($pkgname)) {
+            msg(":: Package <<$pkgname>> has been upgraded!") if $lconfig{debug};
+        }
+        else {
+            note(":: Package <<$pkgname>> has {!NOT!} been upgraded!");
+        }
+    }
+
+    return 1;
+}
+
+sub show_stats {
+    opendir my $dir_h, $lconfig{pacman_local_dir}
+      or error(":: Unable to open directory <<$lconfig{pacman_local_dir}>>: {!$!!}");
+
+    my ($total_size, $num_of_pkgs, %dependencies, %reason_deps);
+
+    my %packages;
+    my $append_package = sub ($date, $pkg, $key) {
+
+        $packages{$key}{new} //= [[q{}, 0]];
+        $packages{$key}{old} //= [[q{}, 'inf']];
+
+        if ($date < $packages{$key}{old}[-1][1]) {
+            unshift @{$packages{$key}{old}}, [$pkg, $date];
+            @{$packages{$key}{old}} = sort { $a->[1] <=> $b->[1] } @{$packages{$key}{old}};
+            pop @{$packages{$key}{old}} if @{$packages{$key}{old}} > $lconfig{packages_in_stats};
+        }
+        if ($date > $packages{$key}{new}[-1][1]) {
+            unshift @{$packages{$key}{new}}, [$pkg, $date];
+            @{$packages{$key}{new}} = sort { $b->[1] <=> $a->[1] } @{$packages{$key}{new}};
+            pop @{$packages{$key}{new}} if @{$packages{$key}{new}} > $lconfig{packages_in_stats};
+        }
+
+        return 1;
+    };
+
+    while (defined(my $subdir = readdir $dir_h)) {
+
+        next if $subdir eq q{.} or $subdir eq q{..};
+        -d "$lconfig{pacman_local_dir}/$subdir" or next;
+
+        ++$num_of_pkgs;
+        my ($current_pkg) = $subdir =~ /^(.+?)-[^-]+-[^-]+$/;
+
+        open my $fh, '<:utf8', catfile($lconfig{pacman_local_dir}, $subdir, 'desc') or next;
+        while (defined(my $line = <$fh>)) {
+
+            chomp($line);
+
+            if ($line eq "%REASON%") {
+                $reason_deps{$current_pkg} = ();
+            }
+            elsif ($line eq "%DEPENDS%") {
+                while (defined(my $dep = <$fh>)) {
+                    chomp $dep;
+                    last if $dep eq q{};
+                    $dependencies{strip_version($dep)} = ();
+                }
+            }
+            elsif ($line eq "%PROVIDES%" and exists $reason_deps{$current_pkg}) {
+                while (defined(my $provided = <$fh>)) {
+                    chomp $provided;
+                    last if $provided eq q{};
+                    push @{$reason_deps{$current_pkg}}, strip_version($provided);
+                }
+            }
+            elsif ($line eq "%SIZE%") {
+                $total_size += <$fh>;
+            }
+            elsif ($line eq "%BUILDDATE%") {
+                chomp(my $date = <$fh>);
+                $append_package->($date, $current_pkg, 'built');
+            }
+            elsif ($line eq "%INSTALLDATE%") {
+                chomp(my $date = <$fh>);
+                $append_package->($date, $current_pkg, 'installed');
+            }
+        }
+    }
+    closedir $dir_h;
+
+    my $as_dep_packages = keys %reason_deps;
+
+    print <<"STATS";
+$c{bblue}::$c{reset} $c{bold}Total installed packages:$c{byellow} $num_of_pkgs$c{reset}
+$c{bblue}::$c{reset} $c{bold}Explicitly installed packages:$c{byellow} ${\($num_of_pkgs - $as_dep_packages)}$c{reset}
+$c{bblue}::$c{reset} $c{bold}Asdep installed packages:$c{byellow} $as_dep_packages$c{reset}
+$c{bblue}::$c{reset} $c{bold}Theoretical space used by packages:$c{byellow} ${\int $total_size / 1024**2} MB$c{reset}\n
+$c{bblue}::$c{reset} $c{bold}Oldest built packages:$c{byellow} @{[map { $_->[0] } @{$packages{built}{old}}]}$c{reset}
+$c{bblue}::$c{reset} $c{bold}Newest built packages:$c{byellow} @{[map { $_->[0] } @{$packages{built}{new}}]}$c{reset}\n
+$c{bblue}::$c{reset} $c{bold}Oldest installed packages:$c{byellow} @{[map { $_->[0] } @{$packages{installed}{old}}]}$c{reset}
+$c{bblue}::$c{reset} $c{bold}Newest installed packages:$c{byellow} @{[map { $_->[0] } @{$packages{installed}{new}}]}$c{reset}\n
+STATS
+
+    print "$c{bblue}::$c{reset} $c{bold}Unneeded packages:$c{byellow}";
+    while (my ($key, $value) = each %reason_deps) {
+        next if exists $dependencies{$key};
+        if (ref($value) eq 'ARRAY') {
+            next if first { exists($dependencies{$_}) } @$value;
+        }
+        print qq{ $key};
+    }
+    say $c{reset};
+
+    main_quit();
+}
+
+sub _parse_pkgname ($pkgref) {
+
+    # Strip `aur/` from `aur/<pkgname>`
+    if ($$pkgref =~ m{^aur/(.+)}) {
+        $$pkgref = $1;
+        return 1;
+    }
+
+    return;
+}
+
+#
+## MAIN
+#
+
+if ($lconfig{S} or $lconfig{sync}) {    # -S
+
+    if ($lconfig{h} or $lconfig{help}) {    # -Sh
+        sync_help();
+    }
+
+    if ($lconfig{c} or $lconfig{clean}) {    # -Sc
+        clean_cache();
+    }
+
+    if ($lconfig{u} or $lconfig{sysupgrade}) {    # -Su
+        update_local_packages();
+    }
+
+    if ($lconfig{s} or $lconfig{search}) {        # -Ss
+        search_aur_packages(splice @keyword_arguments);
+    }
+
+    if ($lconfig{i} or $lconfig{info}) {          # -Si
+        foreach my $pkg (splice @keyword_arguments) {
+
+            local $lconfig{aur} = 1 if _parse_pkgname(\$pkg);
+
+            if (!$lconfig{aur} && is_available_in_pacman_repo($pkg)) {
+                execute_pacman_command(0, qw(-Si), $pkg);
+            }
+            else {
+                my $info = info_for_package($pkg) // do {
+                    note(":: Package not found: $pkg");
+                    $? = 1 << 8;
+                    next;
+                };
+                show_info($info);
+            }
+        }
+    }
+
+    if ($lconfig{l} or $lconfig{local}) {    # -Sl
+        my $curdir = rel2abs(curdir());
+        foreach my $pkg (splice @keyword_arguments) {
+            local $lconfig{clone_dir} = $curdir;
+            local $lconfig{nopull}    = 1;
+            if (!install_package($pkg)) {
+                note(":: Package not found: $pkg");
+                $? = 1 << 8;
+                next;
+            }
+        }
+    }
+
+    if ($lconfig{m} or $lconfig{maintainer}) {    # -Sm
+        foreach my $maintainer (splice @keyword_arguments) {
+            msg(":: AUR packages maintained by <<$maintainer>>") if $lconfig{debug};
+            list_aur_maintainer_packages($maintainer)
+              or do {
+                note(":: Maintainer not found: $maintainer");
+                $? = 1 << 8;
+                next;
+              };
+        }
+    }
+
+    if ($lconfig{p} or $lconfig{pkgbuild}) {      # -Sp
+        foreach my $pkg (splice @keyword_arguments) {
+
+            local $lconfig{aur} = 1 if _parse_pkgname(\$pkg);
+
+            download_package($pkg, $lconfig{clone_dir}) or do {
+                note(":: Package not found: $pkg");
+                $? = 1 << 8;
+                next;
+            };
+            open my $fh, '<:utf8', 'PKGBUILD'
+              or do {
+                note(":: Cannot open PKGBUILD of package <<$pkg>>: {!$!!}");
+                $? = 2 << 8;
+                next;
+              };
+
+            say '';
+            msg(":: PKGBUILD of <<$pkg>>");
+            say '';
+            say <$fh>;
+
+            close $fh;
+        }
+    }
+
+    foreach my $pkg (splice @keyword_arguments) {    # -S only
+        local $lconfig{aur} = 1 if _parse_pkgname(\$pkg);
+        if (install_package($pkg)) {
+            msg(":: Package <<$pkg>> has been successfully installed!") if $lconfig{debug};
+        }
+        else {
+            note(":: Cannot install package: $pkg") if $lconfig{debug};
+        }
+    }
+}
+elsif ($lconfig{C} or $lconfig{comments}) {          # -C
+    foreach my $pkg (@keyword_arguments) {
+        local $lconfig{aur} = 1 if _parse_pkgname(\$pkg);
+        my $info = info_for_package($pkg) // do {
+            note(":: Package not found: $pkg");
+            $? = 1 << 8;
+            next;
+        };
+
+        say '';
+        msg(":: Package: $pkg");
+        msg(":: AUR URL: " . sprintf($aur_package_id_url, $info->{ID}));
+        say '';
+
+        foreach my $comment (get_comments($info->{ID})) {
+            say $comment;
+        }
+    }
+}
+elsif ($lconfig{G} or $lconfig{get}) {    # -G
+
+    if ($lconfig{h} or $lconfig{help}) {    # -Gh
+        get_help();
+    }
+
+    if ($lconfig{d} or $lconfig{with_deps}) {    # -Gd
+
+        my $curdir = rel2abs(curdir());
+
+        foreach my $pkg (@keyword_arguments) {
+
+            local $lconfig{aur}            = 1 if _parse_pkgname(\$pkg);
+            local $lconfig{clone_dir}      = $curdir;
+            local $lconfig{nobuild}        = 1;
+            local $lconfig{noinstall}      = 1;
+            local $lconfig{noconfirm}      = 1;
+            local $lconfig{noedit}         = 1;
+            local $lconfig{noinfo}         = 1;
+            local $lconfig{recompute_deps} = 0;
+
+            if (!install_package($pkg)) {
+                note(":: Package not found: $pkg");
+                $? = 1 << 8;
+                next;
+            }
+        }
+    }
+    else {    # -G only
+        foreach my $pkg (@keyword_arguments) {
+            local $lconfig{aur} = 1 if _parse_pkgname(\$pkg);
+            msg(":: Cloning package: $pkg") if $lconfig{debug};
+            if (!download_package($pkg, rel2abs(curdir()))) {
+                note(":: Package not found: $pkg");
+                $? = 1 << 8;
+                next;
+            }
+        }
+    }
+}
+elsif ($lconfig{U} or $lconfig{upgrade}) {    # -U
+
+    if ($lconfig{h} or $lconfig{help}) {
+        execute_pacman_command(0, '-Uh');
+        main_quit();
+    }
+
+    my @args = get_pacman_arguments(0, qw(asdeps asexplicit noconfirm force needed));
+
+    foreach my $pkg (@keyword_arguments) {
+        if ($pkg =~ /$pkg_suffix_re/o and -e $pkg) {    # install from current dir
+            execute_pacman_command(1, qw(-U), @args, $pkg);
+        }
+        else {                                          # install from cache dir
+            foreach my $dir (grep { -d } glob("$lconfig{clone_dir}/*")) {
+                my $tarball = find_local_package($pkg, $dir) // next;
+                msg(":: Installing: $tarball");
+                execute_pacman_command(1, qw(-U), @args, $tarball);
+            }
+        }
+    }
+}
+elsif ($lconfig{R} or $lconfig{remove}) {               # -R
+
+    if ($lconfig{h} or $lconfig{help}) {
+        execute_pacman_command(0, '-Rh');
+        main_quit();
+    }
+
+    execute_pacman_command(1, get_pacman_arguments(1, qw(remove noconfirm)), @keyword_arguments);
+}
+elsif ($lconfig{D} or $lconfig{database}) {             # -D
+
+    if ($lconfig{h} or $lconfig{help}) {
+        execute_pacman_command(0, '-Dh');
+        main_quit();
+    }
+
+    my @args = (get_pacman_arguments(1, qw(database asdeps asexplicit check noconfirm)), @keyword_arguments);
+
+    if ($lconfig{k} or $lconfig{check}) {
+        execute_pacman_command(0, @args);
+    }
+    else {
+        execute_pacman_command(1, @args);
+    }
+}
+elsif ($lconfig{F} or $lconfig{files}) {    # -F
+
+    if ($lconfig{h} or $lconfig{help}) {
+        execute_pacman_command(0, '-Fh');
+        main_quit();
+    }
+
+    my @args = (get_pacman_arguments(1, qw(files quiet search refresh noconfirm)), @keyword_arguments);
+
+    if ($lconfig{y} or $lconfig{refresh}) {
+        execute_pacman_command(1, @args);
+    }
+    else {
+        execute_pacman_command(0, @args);
+    }
+}
+elsif ($lconfig{Q} or $lconfig{query}) {    # -Q
+
+    if ($lconfig{h} or $lconfig{help}) {
+        execute_pacman_command(0, '-Qh');
+        main_quit();
+    }
+
+    execute_pacman_command(0, get_pacman_arguments(1, qw(query check search info quiet noconfirm)), @keyword_arguments);
+}
+elsif ($lconfig{T} or $lconfig{deptest}) {    # -T
+
+    if ($lconfig{h} or $lconfig{help}) {
+        execute_pacman_command(0, '-Th');
+        main_quit();
+    }
+
+    execute_pacman_command(0, get_pacman_arguments(1, qw(deptest noconfirm)), @keyword_arguments);
+}
+elsif ($lconfig{h} or $lconfig{help}) {
+    help();
+}
+
+main_quit();

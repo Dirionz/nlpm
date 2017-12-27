@@ -26,3 +26,16 @@ exports.restore = (pkg, callback) => {
         }
     });
 }
+
+// Update package using npm
+exports.update = (callback) => { // TODO: Fix this
+    //Call cli to update with npm
+    //cmd.run('npm update -g', function(err, data) {
+    //    if (err) { 
+    //        callback({'msg': 'Error when trying to update with apt' + " -> " + err });
+    //    } else {
+    //        callback();
+    //    }
+    //});
+    callback();
+}

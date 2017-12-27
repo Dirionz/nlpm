@@ -36,3 +36,18 @@ exports.restore = (pkg, callback) => {
         
     });
 }
+
+exports.update = (pkg, callback) => {
+    mkdirp(getDirName(config.get().gitAppDir+pkg), function (err) {
+        if (err) return callback(err);
+
+        cmd.run('git -C ' + config.get().gitAppDir+pkg + ' ' + 'pull', function(err, data) {
+            if (err) { 
+                callback({'msg': pkg + " -> " + err });
+            } else {
+                callback();
+            }
+        });
+        
+    });
+}

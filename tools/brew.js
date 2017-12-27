@@ -26,3 +26,15 @@ exports.restore = (pkg, callback) => {
         }
     });
 }
+
+// Update package using brew
+exports.update = (callback) => {
+    //Call cli to update with brew
+    cmd.run('brew update && brew upgrade', function(err, data) {
+        if (err) { 
+            callback({'msg': 'Error when trying to update with brew' + " -> " + err });
+        } else {
+            callback();
+        }
+    });
+}

@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 'use strict'
+process.env.NODE_ENV = 'debug';
 
 const program = require('commander');
 
-const packageController = require('./controllers/package');
+const installController = require('./controllers/installPackages');
+const restoreController = require('./controllers/restorePackages');
+const updateController = require('./controllers/updatePackages');
 
 program
   .version('1.1.5')
@@ -19,10 +22,10 @@ program
     if (cmd.length > 0) {
         // Install package
         //packageController.install(cmd, options.save, options.manager);
-        packageController.install(cmd, options.save, options.os, 'brew');
+        installController.install(cmd, options.save, options.os, 'brew');
     } else {
         // Restore packages from package.json
-        packageController.restore()
+        restoreController.restore()
     }
   }).on('--help', function() {		
      console.log();		
@@ -34,6 +37,25 @@ program
   });
 
 program
+  .command('update')
+  .alias('u')
+  .description('Update packets from all managers')
+  //.option('-m --manager <manager>', 'Change manager to npm, pacman or apt', /^(npm|pacman|apt)$/i, 'brew')
+  .action(function(cmd, options){
+    if (cmd.length > 0) {
+    } else {
+        // Update packages
+        updateController.update()
+    }
+  }).on('--help', function() {		
+     console.log();		
+     console.log('  Examples:');		
+     console.log();		
+     console.log('    $ nlpm update');		
+     console.log();		
+  });
+
+program
   .command('apt [pkg...]')
   .alias('ai')
   .description('Install one or more packages using apt')
@@ -41,7 +63,7 @@ program
   .action(function(cmd, options){
     if (cmd.length > 0) {
         // Install package
-        packageController.install(cmd, options.save, false, 'apt');
+        installController.install(cmd, options.save, false, 'apt');
     } else {
         // Restore packages from package.json
         //packageController.restore() // TODO: Should we restore here?
@@ -64,7 +86,7 @@ program
   .action(function(cmd, options){
     if (cmd.length > 0) {
         // Install package
-        packageController.install(cmd, options.save, false, 'pacman');
+        installController.install(cmd, options.save, false, 'pacman');
     } else {
         // Restore packages from package.json
         //packageController.restore() // TODO: Should we restore here?
@@ -80,6 +102,29 @@ program
   });
 
 program
+  .command('trizen [pkg...]')
+  .alias('aur')
+  .description('Install one or more packages using trizen (aur)')
+  .option("-s, --save", "Save reference to ~/.package.json")
+  .action(function(cmd, options){
+    if (cmd.length > 0) {
+        // Install package
+        installController.install(cmd, options.save, false, 'aur');
+    } else {
+        // Restore packages from package.json
+        //packageController.restore() // TODO: Should we restore here?
+        console.log('No packages provided..')
+    }
+  }).on('--help', function() {		
+     console.log();		
+     console.log('  Examples:');		
+     console.log();		
+     console.log('    $ nlpm trizen package --save');		
+     console.log('    $ nlpm trizen package');		
+     console.log();		
+  });
+
+program
   .command('npm [pkg...]')
   .alias('ni')
   .description('Install one or more packages using npm')
@@ -87,7 +132,7 @@ program
   .action(function(cmd, options){
     if (cmd.length > 0) {
         // Install package
-        packageController.install(cmd, options.save, false, 'npm');
+        installController.install(cmd, options.save, false, 'npm');
     } else {
         // Restore packages from package.json
         //packageController.restore() // TODO: Should we restore here?
@@ -110,7 +155,7 @@ program
   .action(function(cmd, options){
     if (cmd.length > 0) {
         // Install package
-        packageController.install(cmd, options.save, false, 'git');
+        installController.install(cmd, options.save, false, 'git');
     } else {
         // Restore packages from package.json
         //packageController.restore() // TODO: Should we restore here?

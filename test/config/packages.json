@@ -27,6 +27,14 @@
     ]
   },
   {
+    "name": "aur",
+    "packages": [
+      {
+        "name": "trizen"
+      }
+    ]
+  },
+  {
     "name": "npm",
     "packages": [
       {

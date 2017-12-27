@@ -5,8 +5,6 @@ const expect = chai.expect
 var cmd=require('../tools/cmd');
 var apt=require('../tools/apt');
 
-// TODO: Check if on Ubutntu/Debian
-
 describe('Method should succeed (tools/apt)', () => {
     const testData = "data";
     const pkg = "pkg";

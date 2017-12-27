@@ -6,9 +6,17 @@ exports.infoLoader = (msg) => {
     if (spinner) {
         spinner.stop();
     }
-    var spinner = new Spinner(msg+'.. %s');
+    spinner = new Spinner(msg+'.. %s      ');
     spinner.setSpinnerString('|/-\\');
     spinner.start();
+}
+
+exports.stopSpinner = () => {
+    spinner.stop();
+}
+
+exports.info = (msg) => {
+    return logger(msg);
 }
 
 exports.success = (msg) => {
@@ -22,6 +30,12 @@ exports.error = (err) => {
         msg = msg.replace(/(\r\n|\n|\r)/gm,"");
     }
     return logger(msg);
+}
+
+exports.debug = (msg) => {
+    if (process.env.NODE_ENV === 'debug') {
+        return logger(msg);
+    }
 }
 
 exports.verbose = (msg) => {

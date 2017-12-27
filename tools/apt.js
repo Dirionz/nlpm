@@ -27,6 +27,18 @@ exports.restore = (pkg, callback) => {
     });
 }
 
+// Update package using apt
+exports.update = (callback) => {
+    //Call cli to update with apt
+    cmd.run('sudo apt-get -y update', function(err, data) {
+        if (err) { 
+            callback({'msg': 'Error when trying to update with apt' + " -> " + err });
+        } else {
+            callback();
+        }
+    });
+}
+
 exports.exists = (callback) => {
     cmd.run("apt-get -h", function(err) {
         if (err) callback(false);

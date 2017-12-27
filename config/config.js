@@ -74,6 +74,6 @@ class Config {
 
     hasPacman(os) {
         Array.prototype.push.apply(this.pacmanDistros, this.pacmanDistros);
-        return _.contains(this.aptDistros, os.dist)
+        return _.contains(this.pacmanDistros, os.dist)
     }
 }
