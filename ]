@@ -7,7 +7,6 @@ const updateController = require('../controllers/updatePackages');
 const storage = require('../tools/storage');
 const brew = require('../tools/brew');
 const npm = require('../tools/npm');
-const apt = require('../tools/apt');
 const pacman = require('../tools/pacman');
 const aur = require('../tools/aur');
 
