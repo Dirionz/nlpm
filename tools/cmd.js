@@ -40,11 +40,11 @@ function startCommand(command, args, callback) {
         callback();
     });
 
-    //ls.on('error', (err) => {
-    //    if(!callback)
-    //        return;
-    //    callback(err);
-    //})
+    ls.on('error', (err) => {
+        //if(!callback)
+        //    return;
+        //callback(err);
+    })
 
     process.on('SIGINT', function() {
         ls.kill('SIGINT');
