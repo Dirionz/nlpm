@@ -31,8 +31,11 @@ function startCommand(command, args, callback) {
     const ls = spawn(command, args, { stdio: 'inherit' });
 
     ls.on('close', (code) => {
-        //logger.verbose('Exit code: ' + code.toString());
-        if (code == 0) {
+        logger.verbose('Exit code: ' + code.toString());
+        //if (code == 0) {
+        //    callback();
+        //}
+        if (callback()) {
             callback();
         }
     });

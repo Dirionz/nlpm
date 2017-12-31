@@ -15,28 +15,42 @@ exports.install = (pkg, callback) => {
 }
 
 // Restore package using apt 
-exports.restore = (pkg, callback) => {
-    if (!pkg) { callback({'msg': 'Pkg cannot be null'}); }
+exports.restore = (pkgs, callback) => {
+    if (!pkgs) { callback({'msg': 'Pkgs cannot be null'}); }
     // Call cli to install with apt
-    cmd.run('sudo apt-get -y install ' + pkg, function(err, data) {
+    cmd.start('sudo', ['apt-get', 'install'].concat(pkgs.map(x => x.name)), function(err, data) {
         if (err) { 
-            callback({'msg': 'Error when trying to install: ' + pkg + " -> " + err });
+            callback({'msg': 'Error when trying to install: ' + pkgs + " -> " + err }); // TODO: Not needed?
         } else {
-            callback(); // TODO: Send the data back?
+            callback();
         }
     });
+    //cmd.run('sudo apt-get -y install ' + pkg, function(err, data) {
+    //    if (err) { 
+    //        callback({'msg': 'Error when trying to install: ' + pkg + " -> " + err });
+    //    } else {
+    //        callback(); // TODO: Send the data back?
+    //    }
+    //});
 }
 
 // Update package using apt
 exports.update = (callback) => {
     //Call cli to update with apt
-    cmd.run('sudo apt-get -y update', function(err, data) {
+    cmd.start('sudo', ['apt-get', '-y', 'update'].concat(pkgs.map(x => x.name)), function(err, data) {
         if (err) { 
             callback({'msg': 'Error when trying to update with apt' + " -> " + err });
         } else {
             callback();
         }
     });
+    //cmd.run('sudo apt-get -y update', function(err, data) {
+    //    if (err) { 
+    //        callback({'msg': 'Error when trying to update with apt' + " -> " + err });
+    //    } else {
+    //        callback();
+    //    }
+    //});
 }
 
 exports.exists = (callback) => {

@@ -12,6 +12,7 @@ RUN pacman -Sy --noconfirm diffutils perl perl-libwww perl-term-ui perl-json per
 
 RUN useradd -m -g wheel -s /bin/bash user
 RUN echo "root    ALL=(ALL:ALL) ALL %admin ALL=(ALL) NOPASSWD: ALL %wheel   ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers
+RUN echo "Defaults env_keep += 'HOME'" >> /etc/sudoers
 
 USER user
 

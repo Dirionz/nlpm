@@ -16,6 +16,7 @@ RUN apt-get install --yes sudo build-essential curl file git python-setuptools r
 RUN adduser --disabled-password --gecos '' user
 RUN adduser user sudo
 RUN echo "root    ALL=(ALL:ALL) ALL %admin ALL=(ALL) NOPASSWD: ALL %sudo   ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers
+RUN echo "Defaults env_keep += 'HOME'" >> /etc/sudoers
 
 RUN chown -R user:user /home/user
 USER user

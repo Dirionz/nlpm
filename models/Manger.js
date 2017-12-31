@@ -29,6 +29,10 @@ class Manager {
         return manager;
     }
 
+    getPackagesString() {
+        return this.packages.map(x => x.name).join(',').replace(/,/g, ' ');
+    }
+
     static unionPackages(newPackages, packages) {
         newPackages.forEach(function(pkg) {
             packages.forEach(function(pkgInArr) {

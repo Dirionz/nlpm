@@ -15,16 +15,23 @@ exports.install = (pkg, callback) => {
 }
 
 // Install package using npm
-exports.restore = (pkg, callback) => {
-    if (!pkg) { callback({'msg': 'Pkg cannot be null'}); }
+exports.restore = (pkgs, callback) => {
+    if (!pkgs) { callback({'msg': 'Pkgs cannot be null'}); }
     // Call cli to install with npm
-    cmd.run('npm install -g ' + pkg, function(err, data) {
+    cmd.start('npm', ['install', '-g'].concat(pkgs.map(x => x.name)), function(err, data) {
         if (err) { 
-            callback({'msg': 'Error when trying to install: ' + pkg + " -> " + err });
+            callback({'msg': 'Error when trying to install: ' + pkgs + " -> " + err });
         } else {
             callback(); // TODO: Send the data back?
         }
     });
+    //cmd.run('npm install -g ' + pkg, function(err, data) {
+    //    if (err) { 
+    //        callback({'msg': 'Error when trying to install: ' + pkg + " -> " + err });
+    //    } else {
+    //        callback(); // TODO: Send the data back?
+    //    }
+    //});
 }
 
 // Update package using npm

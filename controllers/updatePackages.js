@@ -22,63 +22,67 @@ exports.update = (callback) => { // TODO: Update all? Not just the ones in the p
         //console.log("Your OS is:" +JSON.stringify(os))
         mOS = os;
 
-        storage.get(function(err, managersData) {
-            var managers = [];
-            if (managersData) {
-                managersData.forEach(function(managerData) {
-                    let manager = Manager.initWithData(managerData);
-                    if (manager.name === 'apt') {
-                        if (config.get().hasApt(os)) {
-                            managers.push(manager);
-                        }
-                    } else if(manager.name === 'pacman') {
-                        //if (config.get().pacmanDistros.includes(os.dist)) {
-                        if (config.get().hasPacman(os)) {
-                            managers.push(manager);
-                        }
-                    } else if(manager.name === 'aur') {
-                        //if (config.get().pacmanDistros.includes(os.dist)) {
-                        if (config.get().hasPacman(os)) {
-                            managers.push(manager);
-                        }
-                    } else {
+        var managers = [];
+        let managersData = [
+            {name: 'brew', packages: []},
+            {name: 'apt', packages: []},
+            {name: 'pacman', packages: []},
+            {name: 'npm', packages: []},
+            {name: 'git', packages: []},
+            {name: 'aur', packages: []}
+        ]
+        if (managersData) {
+            managersData.forEach(function(managerData) {
+                let manager = Manager.initWithData(managerData);
+                if (manager.name === 'apt') {
+                    if (config.get().hasApt(os)) {
                         managers.push(manager);
                     }
-                });
+                } else if(manager.name === 'pacman') {
+                    //if (config.get().pacmanDistros.includes(os.dist)) {
+                    if (config.get().hasPacman(os)) {
+                        managers.push(manager);
+                    }
+                } else if(manager.name === 'aur') {
+                    //if (config.get().pacmanDistros.includes(os.dist)) {
+                    if (config.get().hasPacman(os)) {
+                        managers.push(manager);
+                    }
+                } else {
+                    managers.push(manager);
+                }
+            });
+        } else {
+            console.log('~/.packages.json file is empty.') // TODO: Refer to the correct file (if its configured in config.yml)
+            return;
+        }
+        let order = ['git', 'brew', 'npm', 'apt', 'pacman', 'aur'];
+        managers = managers.sort(function(a,b) {
+            return order.indexOf( a.name ) > order.indexOf( b.name );
+        });
+
+        var managerTasks = [];
+        managerTasks.push(function(callback) {
+            callback(null, managers);
+        });
+        managers.forEach(function(manager) {
+            managerTasks.push(managerTask);
+        });
+
+        async.waterfall(managerTasks, function(err, result) {
+            if (err) {
+                displayer.error(err);
             } else {
-                console.log('~/.packages.json file is empty.') // TODO: Refer to the correct file (if its configured in config.yml)
-                return;
+                // TODO: Mby give another msg here.
+                //if(result) { displayer.success(JSON.stringify(result, null, 2)); }
+                //displayer.stopSpinner();
+                displayer.success('Done updating packages!');
             }
-            let order = ['git', 'brew', 'npm', 'apt', 'pacman', 'aur'];
-            managers = managers.sort(function(a,b) {
-                return order.indexOf( a.name ) > order.indexOf( b.name );
-            });
-
-            var managerTasks = [];
-            managerTasks.push(function(callback) {
-                callback(null, managers);
-            });
-            managers.forEach(function(manager) {
-                managerTasks.push(managerTask);
-            });
-
-            async.waterfall(managerTasks, function(err, result) {
-                if (err) {
-                    displayer.error(err);
-                } else {
-                    // TODO: Mby give another msg here.
-                    //if(result) { displayer.success(JSON.stringify(result, null, 2)); }
-                    //displayer.stopSpinner();
-                    displayer.success('Done updating packages!');
-                }
-                if(callback) {
-                    callback();
-                } else {
-                    process.exitCode = exitCode;
-                }
-            });
-
-
+            if(callback) {
+                callback();
+            } else {
+                process.exitCode = exitCode;
+            }
         });
     });
 }

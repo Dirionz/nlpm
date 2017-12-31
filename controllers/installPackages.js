@@ -13,6 +13,8 @@ const Manager = require('../models/Manger')
 const Package = require('../models/Package')
 const config = require("../config/config")
 
+// TODO: Dont install packages one buy one if we send in multiple packages...
+
 var mOS = undefined;
 
 // Install package using brew

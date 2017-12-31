@@ -39,7 +39,7 @@ exports.debug = (msg) => {
 }
 
 exports.verbose = (msg) => {
-    return;
+    //return;
     return logger(msg);
 }
 

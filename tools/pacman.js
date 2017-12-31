@@ -16,22 +16,22 @@ exports.install = (pkg, callback) => {
 }
 
 // Install package using pacman
-exports.restore = (pkg, callback) => {
-    if (!pkg) { callback({'msg': 'Pkg cannot be null'}); }
+exports.restore = (pkgs, callback) => {
+    if (!pkgs) { callback({'msg': 'Pkgs cannot be null'}); }
     // Call cli to install with pacman
-    cmd.run(constants.PACMAN_RESTORE_COMMAND + pkg, function(err, data) {
+    cmd.start('sudo', ['pacman', '-Sy', '--noconfirm'].concat(pkgs.map(x => x.name)), function(err, data) {
         if (err) { 
-            callback({'msg': 'Error when trying to install: ' + pkg + " -> " + err});
+            callback({'msg': 'Error when trying to install: ' + pkgs + " -> " + err});
         } else {
-            callback(); // TODO: Send the data back?
+            callback();
         }
     });
 }
 
 // Update package using pacman
 exports.update = (callback) => {
-    //Call cli to update with apt
-    cmd.run(constants.PACMAN_UPDATE_COMMAND, function(err, data) {
+    //Call cli to update with pacman
+    cmd.start('sudo', ['pacman', '-Syu', '--noconfirm'], function(err, data) {
         if (err) { 
             callback({'msg': 'Error when trying to update with pacman' + " -> " + err });
         } else {
