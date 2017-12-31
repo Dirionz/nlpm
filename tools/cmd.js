@@ -35,12 +35,14 @@ function startCommand(command, args, callback) {
         //if (code == 0) {
         //    callback();
         //}
-        if (callback()) {
-            callback();
-        }
+        if(!callback)
+            return;
+        callback();
     });
 
     ls.on('error', (err) => {
+        if(!callback)
+            return;
         callback(err);
     })
 
