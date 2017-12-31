@@ -11,16 +11,16 @@ describe('Method should succeed (tools/apt)', () => {
 
     before(function() {
         sinon
-            .stub(cmd, 'run')
+            .stub(cmd, 'start')
             .yields(null, testData);
     });
 
     after(function(){
-        cmd.run.restore();
+        cmd.start.restore();
     });
 
     it('install should succeed', (done) => {
-        apt.restore(pkg, function(err) {
+        apt.restore([pkg], function(err) {
             expect(err).to.be.undefined;
             done();
         });

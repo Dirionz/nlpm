@@ -8,6 +8,7 @@ const storage = require('../tools/storage');
 const brew = require('../tools/brew');
 const npm = require('../tools/npm');
 const pacman = require('../tools/pacman');
+const aur = require('../tools/aur');
 
 describe('Controller Method update should succeed', () => {
     before(function() {
@@ -35,6 +36,9 @@ describe('Controller Method update should succeed', () => {
         sinon
             .stub(pacman, 'update')
             .yields(null);
+        sinon
+            .stub(aur, 'update')
+            .yields(null);
     });
 
     after(function(){
@@ -42,6 +46,7 @@ describe('Controller Method update should succeed', () => {
         brew.update.restore();
         npm.update.restore();
         pacman.update.restore();
+        aur.update.restore();
     });
 
     it('restore should be succeed', (done) => {

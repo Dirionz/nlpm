@@ -11,16 +11,16 @@ describe('Method should succeed (tools/npm)', () => {
 
     before(function() {
         sinon
-            .stub(cmd, 'run')
+            .stub(cmd, 'start')
             .yields(null, testData);
     });
 
     after(function(){
-        cmd.run.restore();
+        cmd.start.restore();
     });
 
     it('install should succed', (done) => {
-        npm.restore(pkg, function(err) {
+        npm.restore([pkg], function(err) {
             expect(err).to.be.undefined;
             done();
         });
