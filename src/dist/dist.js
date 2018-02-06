@@ -14,10 +14,14 @@ exports.getManagerIfSupported = (managerSupportedOn, callback) => {
             console.log(os)
             if(e) return callback(e)
             
-            const cfg = config.get()
-            const dist = config.translateIfPossible(os.dist, cfg)
-            if (dist)
-                os.dist = dist
+            if (os.os == 'linux') {
+                const cfg = config.get()
+                const dist = config.translateIfPossible(os.dist, cfg)
+                if (dist)
+                    os.dist = dist
+            } else {
+                os.dist = os.os
+            }
 
             const distArr = managerSupportedOn[1]
 

@@ -9,6 +9,16 @@ apt|a:
   update|u: 
     cmd: sudo apt update && sudo apt upgrade
     description: Update packages using apt.
+pkg|pkg:
+  os: 
+  - "android" 
+  install|i: 
+    cmd: pkg install <pkgs>
+    description: Install one or more packages with pkg.
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: pkg update && pkg upgrade
+    description: Update packages using pkg.
 pacman|p:
   os: 
   - "Arch Linux" 
@@ -53,7 +63,7 @@ npm|n:
     description: Update packages using npm.
 brew|b:
   os: 
-  - "-" 
+  - "darwin" 
   install|i: 
     cmd: brew install <pkgs>
     description: Install one or more packages with brew.

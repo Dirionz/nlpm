@@ -4,6 +4,7 @@ const sinon = require('sinon');
 const chai = require('chai');
 const expect = chai.expect
 
+var fs = require('fs')
 var jsonfile = require('jsonfile')
 var storage = require('../tools/storage')
 var read = require('./read')
@@ -11,8 +12,11 @@ var read = require('./read')
 describe('Read.packages(os, callback)', () => {
     before(function() {
         sinon
-            .stub(jsonfile, 'readFile')
-            .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
+        .stub(fs, 'writeFile')
+        .yields(null);
+        sinon
+            .stub(jsonfile, 'readFileSync')
+            .returns(JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'))
     });
 
     it('should call get once', (done) => {
@@ -77,7 +81,8 @@ describe('Read.packages(os, callback)', () => {
    
     });
     after(function() {
-        jsonfile.readFile.restore()
+        fs.writeFile.restore()
+        jsonfile.readFileSync.restore()
     });
 });
 

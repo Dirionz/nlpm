@@ -101,6 +101,33 @@ describe('Dist.isSupported(managerSupportedOn, callback)', () => {
         })
 
     });
+    it('should return brew manager if distro is defined (macos)', (done) => {
+
+        sinon
+            .stub(config, 'get')
+            .returns(JSON.parse('{"packageDir":"/home/dirionz/.config/nlpm/packages.json","gitAppDir":"/home/dirionz/Apps/","aptDistros":["Ubuntu Linux"],"aptExtraDistros":["Linux Mint"],"pacmanDistros":["Arch Linux"],"pacmanExtraDistros":[]}'))
+
+        var os = JSON.parse('{"os":"darwin"}')
+
+        sinon
+        .stub(getos, 'getos')
+        .yields(null, os);
+
+        var managerSupportedOn = [ 'brew', [ 'darwin' ]]
+
+        dist.getManagerIfSupported(managerSupportedOn, (err, data) => {
+            config.get.restore()
+            getos.getos.restore()
+            if (err) {
+                throw new Error("Should not be an error")
+            }
+
+            expect(data).to.equal(managerSupportedOn[0])
+
+            done()
+        })
+
+    });
     it('should return npn manager if all distos is ok', (done) => {
 
         sinon
