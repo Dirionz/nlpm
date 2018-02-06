@@ -86,6 +86,22 @@ brew|b:
   update|u: 
     cmd: brew update
     description: Update packages using brew.
+  search|s: 
+    cmd: "brew search <pkgs>"
+    description: Search brew
+brew-cask|bc:
+  os: 
+  - "darwin" 
+  install|i: 
+    cmd: brew cask install <pkgs>
+    description: Install one or more packages with brew cask.
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: brew update
+    description: Update packages using brew cask.
+  search|s: 
+    cmd: "brew cask search <pkgs>"
+    description: Search cask
 pip|pip:
   os: 
   - "-" 
