@@ -8,8 +8,8 @@ const storage = require('../tools/storage');
 describe('Method should succeed (tools/storage)', () => { 
     it('save should succed', (done) => {
         sinon
-        .stub(jsonFile, 'writeFile')
-        .yields(null);
+            .stub(jsonFile, 'writeFile')
+            .yields(null);
         storage.save(["pkg", "pkg2"], function(err) {
             jsonFile.writeFile.restore();
             expect(err).to.be.null;
@@ -20,10 +20,10 @@ describe('Method should succeed (tools/storage)', () => {
     it('get should succeed', (done) => {
         var obj = {name: 'JP'}
         sinon
-        .stub(jsonFile, 'readFile')
-        .yields(null, obj);
+            .stub(jsonFile, 'readFileSync')
+            .returns(obj)
         storage.get(function(err, file) {
-            jsonFile.readFile.restore();
+            jsonFile.readFileSync.restore();
             expect(err).to.be.null;
             expect(file).to.be.equal(obj);
             done();

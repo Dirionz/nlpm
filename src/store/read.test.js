@@ -48,9 +48,13 @@ describe('Read.packages(os, callback)', () => {
    
     });
     it('should return empty array if not passed any managers', (done) => {
+        sinon
+            .stub(storage, 'get')
+            .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
         var managers = []
         
         read.packages(managers, (err, managersArray) => {
+            storage.get.restore()
             expect(err).to.equal(null)
             expect(managersArray.length).to.equal(0)
             done()
@@ -59,8 +63,12 @@ describe('Read.packages(os, callback)', () => {
     });
     it('should return apt managerArray', (done) => {
         var managers = [ 'apt' ]
+        sinon
+            .stub(storage, 'get')
+            .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
         
         read.packages(managers, (err, managersArray) => {
+            storage.get.restore()
             expect(err).to.equal(null)
             expect(managersArray.length).to.equal(1)
             expect(managersArray[0]['apt'][0]).to.equal(JSON.parse('[{"apt":[ "curl", "perl" ]}]')[0]['apt'][0])

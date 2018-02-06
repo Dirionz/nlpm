@@ -39,7 +39,7 @@ describe('Save.packages(manager, pkgs, callback)', () => {
     it('should pass object with correct values to storage.save', (done) => {
         var storage_save = sinon.spy(storage, 'save')
         sinon
-            .stub(jsonfile, 'readFile')
+            .stub(storage, 'get')
             .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
         var packages = JSON.parse('{ "apt": { "packages": [ "curl", "perl", "node" ] }, "brew cask": { "packages": [ "android-studio" ] } }')
 
@@ -49,7 +49,7 @@ describe('Save.packages(manager, pkgs, callback)', () => {
 
         save.packages(manager, pkgs, (err) => {
             storage_save.restore()
-            jsonfile.readFile.restore()
+            storage.get.restore()
             if (err) {
                 throw err
             }
@@ -61,7 +61,7 @@ describe('Save.packages(manager, pkgs, callback)', () => {
     });
     it('should create new manager if not exist' , (done) => {
         sinon
-            .stub(jsonfile, 'readFile')
+            .stub(storage, 'get')
             .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
         var storage_save = sinon.spy(storage, 'save')
         var packages = JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] }, "brew": { "packages": [ "node" ] } }')
@@ -71,7 +71,7 @@ describe('Save.packages(manager, pkgs, callback)', () => {
 
         save.packages(manager, pkgs, (err) => {
             storage_save.restore()
-            jsonfile.readFile.restore()
+            storage.get.restore()
             if (err) {
                 throw err
             }
