@@ -19,6 +19,9 @@ pacman|p:
   update|u: 
     cmd: sudo pacman -Syu
     description: Update packages using pacman.
+  search|s: 
+    cmd: sudo pacman -Ss <pkgs>
+    description: Search packages using pacman.
 trizen|aur:
   os: 
   - "Arch Linux" 
