@@ -6,6 +6,10 @@ apt|a:
     cmd: sudo apt install <pkgs>
     description: Install one or more packages with apt.
     save: Option to save packages to packages.json
+  install-auto|ia: 
+    cmd: sudo apt --assume-yes install <pkgs>
+    description: Install one or more packages with apt (no interaction).
+    save: Option to save packages to packages.json
   update|u: 
     cmd: sudo apt update && sudo apt upgrade
     description: Update packages using apt.
@@ -15,6 +19,10 @@ pkg|pkg:
   install|i: 
     cmd: pkg install <pkgs>
     description: Install one or more packages with pkg.
+    save: Option to save packages to packages.json
+  install-auto|ia: 
+    cmd: pkg --assume-yes install <pkgs>
+    description: Install one or more packages with pkg (no interaction).
     save: Option to save packages to packages.json
   update|u: 
     cmd: pkg update && pkg upgrade
@@ -26,6 +34,10 @@ pacman|p:
     cmd: sudo pacman -Sy <pkgs>
     description: Install one or more packages with pacman.
     save: Option to save packages to packages.json
+  install-auto|ia: 
+    cmd: sudo pacman -Sy --noconfirm <pkgs>
+    description: Install one or more packages with pacman (no interaction).
+    save: Option to save packages to packages.json
   update|u: 
     cmd: sudo pacman -Syu
     description: Update packages using pacman.
@@ -36,11 +48,14 @@ trizen|aur:
   os: 
   - "Arch Linux" 
   install|i:
-    cmd: perl <plugins>/trizen -Sy --nocolors <pkgs>
+    cmd: perl <plugins>/trizen -Sy <pkgs>
     description: Install a package from aur.
+  install-auto|ia: 
+    cmd: perl <plugins>/trizen -Sy --noconfirm --noedit <pkgs>
+    description: Install one or more packages with trizen (no interaction).
     save: Option to save packages to packages.json
   update|u: 
-    cmd: perl <plugins>/trizen -Syu --nocolors --aur
+    cmd: perl <plugins>/trizen -Syu --aur
     description: Update packages using pacman.
   search|s: 
     cmd: "bash <plugins>/aurlist <pkgs>"

@@ -33,6 +33,7 @@ help_str = help_str + space.repeat(3) + "Show version number" + '\n'
 var map_managers = new HashMap()
 var map_alias_managers = new HashMap()
 var map_managers_os = new HashMap()
+var arr_manager_has_save = []
 
 for (var k in data) {
 
@@ -74,9 +75,10 @@ for (var k in data) {
 
             if (sub_command && sub_description) {
                 commands.map_commands.set(sub_fullname, sub_command)
-                help_str = help_str + space.repeat(3) + sub_fullname + '|' + sub_alias + '\t' + sub_description + '\n'
+                help_str = help_str + space.repeat(3) + sub_fullname + '|' + sub_alias + space.repeat(1) + '\t' + sub_description + '\n'
                 if (sub_save) {
-                    help_str = help_str + space.repeat(4) + '\t--save\t' + sub_save + '\n'
+                    help_str = help_str + space.repeat(6) + '\t--save\t' + sub_save + '\n'
+                    arr_manager_has_save.push(fullname+sub_command)
                 }
             }
         }
@@ -142,8 +144,10 @@ async function restoreWithAllManagers() {
 
                 let command = map_managers.get(manager);
 
-                var str = command.map_commands.get('install') // Need restore command?
-                //console.log(str)
+                var str = command.map_commands.get('install-auto')
+                if (!str)
+                    str = command.map_commands.get('install')
+                console.log(str)
 
                 const pkgs = packages[i][manager]
                 //console.log(pkgs)
@@ -212,6 +216,9 @@ async function managerCmd(commandStr) {
         let pkgs = process.argv.slice(4, process.argv.length)
 
         let shouldSave = parsecmd.hasSave(pkgs)
+
+        if (shouldSave && !arr_manager_has_save.includes(manager+str))
+            throw new Error("Save option is not supported for this command.")
 
         const res = await commander.cmd(parsecmd.parse(str, pkgs))
 
