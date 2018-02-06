@@ -30,8 +30,8 @@ trizen|aur:
     description: Install a package from aur.
     save: Option to save packages to packages.json
   update|u: 
-    cmd: perl /<plugins>/trizen -Syu --nocolors
-    descripton: Update aur packages.
+    cmd: perl <plugins>/trizen -Syu --nocolors --aur
+    description: Update packages using pacman.
   search|s: 
     cmd: "bash <plugins>/aurlist <pkgs>"
     description: Search aur
