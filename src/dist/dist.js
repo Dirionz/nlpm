@@ -11,6 +11,7 @@ exports.getManagerIfSupported = (managerSupportedOn, callback) => {
         callback(new Error("Illegal Arguments"))
     } else {
         gos.getos(function(e,os) {
+            console.log(os)
             if(e) return callback(e)
             
             const cfg = config.get()
