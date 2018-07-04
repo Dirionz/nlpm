@@ -1,0 +1,39 @@
+---
+apt|a:
+  os: 
+  - "Ubuntu Linux" 
+  install|i: 
+    cmd: sudo apt install <pkgs>
+    description: Install one or more packages with apt.
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: sudo apt update && sudo apt upgrade
+    description: Update packages using apt.
+pacman|p:
+  os: 
+  - "Arch Linux" 
+  install|i: 
+    cmd: sudo pacman -Sy <pkgs>
+    description: Install one or more packages with pacman.
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: sudo pacman -Syu
+    description: Update packages using pacman.
+trizen|aur:
+  os: 
+  - "Arch Linux" 
+  install|i:
+    cmd: perl <plugins>/trizen -Sy --nocolors <pkgs>
+    description: Install a package from aur.
+  update|u: 
+    cmd: perl /<plugins>/trizen -Syu --nocolors
+    descripton: Update aur packages.
+  search|s: 
+    cmd: "bash <plugins>/aurlist <pkgs>"
+    description: Search aur
+  filter|sf: 
+    cmd: "bash <plugins>/aurlist -s <pkgs>"
+    description: Filter last search.
+  install-index|ii:
+    cmd: perl <plugins>/trizen -Sy --nocolors $(<plugins>/aurlist -i <pkgs>)
+    description: Installs package with index from latest search

@@ -8,6 +8,9 @@ const installController = require('./controllers/installPackages');
 const restoreController = require('./controllers/restorePackages');
 const updateController = require('./controllers/updatePackages');
 
+const commander = require('./tools/commander.js')
+const parsecmd = require('./tools/parsecmd.js')
+
 program
   .version('1.1.5')
 
@@ -106,10 +109,15 @@ program
   .alias('aur')
   .description('Install one or more packages using trizen (aur)')
   .option("-s, --save", "Save reference to ~/.package.json")
+  .option("-q, --search", "Search aur for a package")
   .action(function(cmd, options){
     if (cmd.length > 0) {
-        // Install package
-        installController.install(cmd, options.save, false, 'aur');
+        if (options.search) {
+            console.log("yep")
+        } else {
+            // Install package
+            installController.install(cmd, options.save, false, 'aur');
+        }
     } else {
         // Restore packages from package.json
         //packageController.restore() // TODO: Should we restore here?
@@ -174,6 +182,46 @@ program
      console.log('    $ nlpm git user/repo');		
      console.log();		
   });
+
+program
+  .command('test [pkg...]')
+  .description('Install one or more packages using npm')
+  .option("-s, --save", "Save reference to ~/.package.json")
+  .action(function(cmd, options){
+      var str = 'echo hi'
+      //var str = 'asdf'
+      commander.cmd(parsecmd.parse(str)).then((result) => {
+          process.exitCode = 0
+      }, (err) => {
+          console.log(err)
+          process.exitCode = 1
+      })
+  }).on('--help', function() {		
+     console.log();		
+     console.log('  Examples:');		
+     console.log();		
+     console.log('    $ nlpm npm package --save');		
+     console.log('    $ nlpm npm package');		
+     console.log();		
+  });
+    
+  var command = program.command("test2 [pkg...]")
+    command.option("-s, --save", "Save reference to ~/.package.json")
+    for (var i = 0; i<2; i++) {
+        command.option("-s"+i+", --sate"+i, "Save reference to ~/.package.json"+i)
+    }
+    command.action(function(cmd, options){
+        var str = 'echo hi'
+        //var str = 'asdf'
+        commander.cmd(parsecmd.parse(str)).then((result) => {
+            process.exitCode = 0
+        }, (err) => {
+            console.log(err)
+            process.exitCode = 1
+        })
+    }).on('--help', function() {		
+        console.log();		
+    });
 
   if (!process.argv.slice(2).length) {
       program.outputHelp();
