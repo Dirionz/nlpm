@@ -12,7 +12,7 @@ describe('Read.packages(os, callback)', () => {
     before(function() {
         sinon
             .stub(jsonfile, 'readFile')
-            .yields(null, '{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }');
+            .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
     });
 
     it('should call get once', (done) => {

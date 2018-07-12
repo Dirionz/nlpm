@@ -17,15 +17,13 @@ exports.packages = (managers, callback) => {
 
 function filter(json, managers) {
     var filteredManagers = []
-
-    var pJson = JSON.parse(json)
-    if (pJson) {
-        for (var key in pJson) {
-            if (pJson.hasOwnProperty(key)) {
-                //console.log(key + " -> " + pJson[key]);
+    if (json) {
+        for (var key in json) {
+            if (json.hasOwnProperty(key)) {
+                //console.log(key + " -> " + json[key]);
                 if (hasKey(managers, key)) {
                     filteredManagers.push({
-                        [key]: pJson[key]['packages']
+                        [key]: json[key]['packages']
                     })
                 }
             }

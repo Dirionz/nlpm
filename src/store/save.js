@@ -25,11 +25,11 @@ exports.packages = (manager, pkgs, callback) => {
 
 function addPackages(manager, pkgs, json) {
     var newJson = undefined
-    var pJson = JSON.parse(json);
+    var pJson = json
     var pManager = undefined
     if (pJson) {
         var pManager = pJson[manager];
-        
+
         if (pManager) {
             var managerPackes = pManager['packages']
         

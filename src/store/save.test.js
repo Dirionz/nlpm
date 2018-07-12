@@ -11,18 +11,22 @@ var save = require('./save')
 describe('Save.packages(manager, pkgs, callback)', () => {
     before(function() {
         sinon
-            .stub(jsonfile, 'readFile')
-            .yields(null, '{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }');
+            .stub(jsonfile, 'writeFile')
+            .yields(null);
     });
 
     it('should call save once', (done) => {
         var storage_save = sinon.spy(storage, 'save')
+        sinon
+            .stub(jsonfile, 'readFile')
+            .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
 
         var manager = "apt"
         var pkgs = ["node"]
 
         save.packages(manager, pkgs, (err) => {
             storage_save.restore()
+            jsonfile.readFile.restore()
             if (err) {
                 throw err
             }
@@ -34,6 +38,9 @@ describe('Save.packages(manager, pkgs, callback)', () => {
     });
     it('should pass object with correct values to storage.save', (done) => {
         var storage_save = sinon.spy(storage, 'save')
+        sinon
+            .stub(jsonfile, 'readFile')
+            .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
         var packages = JSON.parse('{ "apt": { "packages": [ "curl", "perl", "node" ] }, "brew cask": { "packages": [ "android-studio" ] } }')
 
         var manager = "apt"
@@ -42,6 +49,7 @@ describe('Save.packages(manager, pkgs, callback)', () => {
 
         save.packages(manager, pkgs, (err) => {
             storage_save.restore()
+            jsonfile.readFile.restore()
             if (err) {
                 throw err
             }
@@ -52,6 +60,9 @@ describe('Save.packages(manager, pkgs, callback)', () => {
 
     });
     it('should create new manager if not exist' , (done) => {
+        sinon
+            .stub(jsonfile, 'readFile')
+            .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
         var storage_save = sinon.spy(storage, 'save')
         var packages = JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] }, "brew": { "packages": [ "node" ] } }')
 
@@ -60,6 +71,7 @@ describe('Save.packages(manager, pkgs, callback)', () => {
 
         save.packages(manager, pkgs, (err) => {
             storage_save.restore()
+            jsonfile.readFile.restore()
             if (err) {
                 throw err
             }
@@ -72,8 +84,11 @@ describe('Save.packages(manager, pkgs, callback)', () => {
     it('should create new manager if not exist (empty file)' , (done) => {
         var storage_save = sinon.spy(storage, 'save')
         sinon
+            .stub(jsonfile, 'readFile')
+            .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
+        sinon
             .stub(storage, 'get')
-            .yields(null, '""');
+            .yields(null, JSON.parse('""'));
         var packages = JSON.parse('{"brew": { "packages": [ "node" ] } }');
 
         var manager = "brew"
@@ -82,6 +97,7 @@ describe('Save.packages(manager, pkgs, callback)', () => {
         save.packages(manager, pkgs, (err) => {
             storage_save.restore()
             storage.get.restore()
+            jsonfile.readFile.restore()
             if (err) {
                 throw err
             }
@@ -92,6 +108,9 @@ describe('Save.packages(manager, pkgs, callback)', () => {
         })
     });
     it('should return illigal arguments when passes wrong values', (done) => {
+        sinon
+            .stub(jsonfile, 'readFile')
+            .yields(null, JSON.parse('{ "apt": { "packages": [ "curl", "perl" ] }, "brew cask": { "packages": [ "android-studio" ] } }'));
         var storage_save = sinon.spy(storage, 'save')
     
         var manager = ["asdfasdf"]
@@ -99,6 +118,7 @@ describe('Save.packages(manager, pkgs, callback)', () => {
         
         save.packages(manager, pkgs, (err) => {
             storage_save.restore()
+            jsonfile.readFile.restore()
             if (err) {
                 expect(err.describe).to.equal(new Error("Illegal Arguments").describe)
                 done()
@@ -109,6 +129,6 @@ describe('Save.packages(manager, pkgs, callback)', () => {
    
     });
     after(function() {
-        jsonfile.readFile.restore()
+        jsonfile.writeFile.restore()
     });
 });
