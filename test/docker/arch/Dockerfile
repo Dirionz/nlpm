@@ -40,7 +40,7 @@ RUN ls /home/user
 RUN ls /home/user/nlpm
 RUN ls /home/user/nlpm/test/config
 
-RUN mkdir /home/user/.config
-RUN mkdir /home/user/.config/nlpm
+RUN mkdir /home/user/.config || true
+RUN mkdir /home/user/.config/nlpm || true
 RUN cp /home/user/nlpm/test/config/config.yml /home/user/.config/nlpm/
 RUN cp /home/user/nlpm/test/config/packages.json /home/user/.config/nlpm/
