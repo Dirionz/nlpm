@@ -29,8 +29,8 @@ RUN brew update || true
 RUN brew doctor || true
 #RUN brew install node npm
 
-ENV NVM_VERSION v0.29.0
-ENV NODE_VERSION v5.0.0
+#ENV NVM_VERSION v0.29.0
+ENV NODE_VERSION v8.4.0
 # Replace shell with bash so we can source files
 
 RUN curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.2/install.sh | bash
@@ -43,7 +43,7 @@ RUN source ~/.nvm/nvm.sh; \
 ADD . /home/user/nlpm
 RUN ls /home/user
 RUN ls /home/user/nlpm
-RUN ls /home/user/nlpm/config
+RUN ls /home/user/nlpm/test/config
 
 RUN mkdir /home/user/.config
 RUN mkdir /home/user/.config/nlpm

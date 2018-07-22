@@ -7,6 +7,7 @@ const mkdirp = require('mkdirp');
 const getDirName = require('path').dirname;
 const configFilePath=process.env.HOME+'/.config/nlpm/config.yml';
 
+
 var config;
 
 exports.get = () => {
@@ -22,14 +23,14 @@ exports.get = () => {
     } catch (err) {
         //console.log('Error:'+err.code);
         if (err.code === 'ENOENT') {
-            console.log('File not found!'); // TODO: Use displayer
+            console.log('File not found!');
             mkdirp(getDirName(configFilePath), function (err) {
                 if (err) return callback(err);
                 var contents = "";
                 fs.writeFile(configFilePath, contents, (err) => {});
             });
         } else {
-            console.log('Error in config file!'); // TODO: Use displayer
+            console.log('Error in config file!');
             throw err;
         }
     }
@@ -40,7 +41,7 @@ class Config {
     constructor() {
         this.packageDir = process.env.HOME+"/.packages.json"; 
         this.gitAppDir = process.env.HOME+"/Apps/"; 
-        this.aptDistros = ["Ubuntu Linux"]; // TODO: Add extra distro names
+        this.aptDistros = ["Ubuntu Linux"];
         this.aptExtraDistros = [];
         this.pacmanDistros = ["Arch Linux"];
         this.pacmanExtraDistros = [];
@@ -76,4 +77,19 @@ class Config {
         Array.prototype.push.apply(this.pacmanDistros, this.pacmanDistros);
         return _.contains(this.pacmanDistros, os.dist)
     }
+    
+}
+
+exports.translateIfPossible = (dist, cfg) => {
+    if (arrayContains(dist, cfg.aptDistros) || arrayContains(dist, cfg.aptExtraDistros)) {
+        return 'Ubuntu Linux'
+    } else if (arrayContains(dist, cfg.pacmanDistros) || arrayContains(dist, cfg.pacmanExtraDistros)) {
+        return 'Arch Linux'
+    } else {
+        return undefined
+    }
+}
+
+function arrayContains(needle, arrhaystack) {
+    return (arrhaystack.indexOf(needle) > -1);
 }

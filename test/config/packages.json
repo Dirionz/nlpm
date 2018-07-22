@@ -1,45 +1,26 @@
-[
-  {
-    "name": "brew",
+{
+  "pacman": {
     "packages": [
-      {
-        "name": "hello"
-      }
+      "ncdu",
+      "tmux",
+      "htop",
+      "tig",
+      "feh"
     ]
   },
-  {
-    "name": "apt",
+  "pip": {
     "packages": [
-      {
-        "name": "curl"
-      }
+      "speedtest-cli"
     ]
   },
-  {
-    "name": "git",
+  "apt": {
     "packages": [
-      {
-        "name": "GGLucas/cortex"
-      },
-      {
-        "name": "connermcd/gtd"
-      }
+      "curl"
     ]
   },
-  {
-    "name": "aur",
+  "trizen": {
     "packages": [
-      {
-        "name": "trizen"
-      }
-    ]
-  },
-  {
-    "name": "npm",
-    "packages": [
-      {
-        "name": "hello-world-node-package"
-      }
+      "visual-studio-code-bin"
     ]
   }
-]
+}

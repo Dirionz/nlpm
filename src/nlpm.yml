@@ -1,0 +1,114 @@
+---
+apt|a:
+  os: 
+  - "Ubuntu Linux" 
+  install|i: 
+    cmd: sudo apt install <pkgs>
+    description: Install one or more packages with apt.
+    save: Option to save packages to packages.json
+  install-auto|ia: 
+    cmd: sudo apt --assume-yes install <pkgs>
+    description: Install one or more packages with apt (no interaction).
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: sudo apt update && sudo apt upgrade
+    description: Update packages using apt.
+pkg|pkg:
+  os: 
+  - "android" 
+  install|i: 
+    cmd: pkg install <pkgs>
+    description: Install one or more packages with pkg.
+    save: Option to save packages to packages.json
+  install-auto|ia: 
+    cmd: pkg --assume-yes install <pkgs>
+    description: Install one or more packages with pkg (no interaction).
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: pkg update && pkg upgrade
+    description: Update packages using pkg.
+pacman|p:
+  os: 
+  - "Arch Linux" 
+  install|i: 
+    cmd: sudo pacman -Sy <pkgs>
+    description: Install one or more packages with pacman.
+    save: Option to save packages to packages.json
+  install-auto|ia: 
+    cmd: sudo pacman -Sy --noconfirm <pkgs>
+    description: Install one or more packages with pacman (no interaction).
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: sudo pacman -Syu
+    description: Update packages using pacman.
+  search|s: 
+    cmd: sudo pacman -Ss <pkgs>
+    description: Search packages using pacman.
+trizen|aur:
+  os: 
+  - "Arch Linux" 
+  install|i:
+    cmd: perl <plugins>/trizen -Sy <pkgs>
+    description: Install a package from aur.
+  install-auto|ia: 
+    cmd: perl <plugins>/trizen -Sy --noconfirm --noedit <pkgs>
+    description: Install one or more packages with trizen (no interaction).
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: perl <plugins>/trizen -Syu --aur
+    description: Update packages using pacman.
+  search|s: 
+    cmd: "bash <plugins>/aurlist <pkgs>"
+    description: Search aur
+  filter|sf: 
+    cmd: "bash <plugins>/aurlist -s <pkgs>"
+    description: Filter last search.
+  # install-index|ii:
+  #   cmd: perl <plugins>/trizen -Sy --nocolors $(<plugins>/aurlist -i <pkgs>)
+  #   description: Installs package with index from latest search
+npm|n:
+  os: 
+  - "-" 
+  install|i: 
+    cmd: npm install -g <pkgs>
+    description: Install one or more packages with npm.
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: npm update -g
+    description: Update packages using npm.
+brew|b:
+  os: 
+  - "darwin" 
+  install|i: 
+    cmd: brew install <pkgs>
+    description: Install one or more packages with brew.
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: brew update
+    description: Update packages using brew.
+  search|s: 
+    cmd: "brew search <pkgs>"
+    description: Search brew
+brew-cask|bc:
+  os: 
+  - "darwin" 
+  install|i: 
+    cmd: brew cask install <pkgs>
+    description: Install one or more packages with brew cask.
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: brew update
+    description: Update packages using brew cask.
+  search|s: 
+    cmd: "brew cask search <pkgs>"
+    description: Search cask
+pip|pip:
+  os: 
+  - "-" 
+  install|i: 
+    cmd: pip install --user <pkgs>
+    description: Install one or more packages with pip.
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: pip install --user -U $(pip list --user --outdated | awk 'NR>2 {print $1}')
+    description: Update packages using pip.

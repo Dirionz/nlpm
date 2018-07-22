@@ -10,14 +10,28 @@ Nlpm is tool for installing and restoring packages, using various underlying pac
 
 # New Features!
 
-  - Added support for git.
   - Added simple config file.
-  - Tie a package to current os when using brew and linuxbrew.
-  - Added support for brew, npm, apt and pacman.
+  - Added support for brew, brew cask, npm, pip, trizen, apt and pacman.
 
 ### Installation
 
-Nlpm requires [Node.js](https://nodejs.org/) to run.
+Nlpm requires [Node.js](https://nodejs.org/) 8 or later to run.
+
+#### Notes 
+
+Arch Linux needs 'lsb-release' package installed.
+
+Trizen is included as a plugin and requires the following dependencies 
+         'git'
+         'pacutils'
+         'perl>=5.20.0'
+         'perl-libwww'
+         'perl-term-ui'
+         'pacman'
+         'perl-json'
+         'perl-data-dump'
+         'perl-lwp-protocol-https'
+         'perl-term-readline-gnu'
 
 Install from npm
 
@@ -29,7 +43,7 @@ For development environment.
 
 ```sh
 $ npm install
-$ ./app.js
+$ ./src/nlpm.js
 ```
 
 ### Config
@@ -38,12 +52,10 @@ Example:
 
 ```yml
 packageDir: ~/.config/nlpm/packages.json
-gitAppDir: ~/Apps/
 aptExtraDistros:
  - Linux Mint
 ```
 
 ### Todos
 
- - Write MORE Tests
- - Add pip and pip3
+ - Better user config
