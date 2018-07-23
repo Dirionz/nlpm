@@ -2,7 +2,7 @@ FROM rafaelsoares/archlinux:latest
 
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 
-RUN pacman -Syu --noconfirm
+RUN pacman -Syyu --noconfirm
 
 ENV LANG en_US.UTF-8
 

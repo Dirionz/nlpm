@@ -17,10 +17,5 @@
     "packages": [
       "curl"
     ]
-  },
-  "trizen": {
-    "packages": [
-      "visual-studio-code-bin"
-    ]
   }
 }
