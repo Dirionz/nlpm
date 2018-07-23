@@ -6,9 +6,9 @@ RUN pacman -Syu --noconfirm
 
 ENV LANG en_US.UTF-8
 
-RUN pacman -Sy --noconfirm sudo file git python-setuptools ruby base-devel
+RUN pacman -Sy --noconfirm sudo file git python-setuptools python-pip lsb-release ruby base-devel
 #Trizen dep
-RUN pacman -Sy --noconfirm diffutils perl perl-libwww perl-term-ui perl-json perl-data-dump perl-lwp-protocol-https
+RUN pacman -Sy --noconfirm diffutils pacutils perl>=5.20.0 perl-libwww perl-term-ui perl-json perl-data-dump perl-lwp-protocol-https perl-term-readline-gnu
 
 RUN useradd -m -g wheel -s /bin/bash user
 RUN echo "root    ALL=(ALL:ALL) ALL %admin ALL=(ALL) NOPASSWD: ALL %wheel   ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers

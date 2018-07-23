@@ -11,7 +11,7 @@ RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && \
 
 ENV LANG en_US.UTF-8
 
-RUN apt-get install --yes sudo build-essential curl file git python-setuptools ruby git
+RUN apt-get install --yes sudo build-essential python-pip curl file git python-setuptools ruby git
 
 RUN adduser --disabled-password --gecos '' user
 RUN adduser user sudo
