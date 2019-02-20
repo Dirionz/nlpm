@@ -112,3 +112,16 @@ pip|pip:
   update|u: 
     cmd: pip install --user -U $(pip list --user --outdated | awk 'NR>2 {print $1}')
     description: Update packages using pip.
+snap|snap:
+  os: 
+  - "-" 
+  install|i: 
+    cmd: snap install <pkgs>
+    description: Install one or more packages with snap.
+    save: Option to save packages to packages.json
+  update|u: 
+    cmd: snap refresh 
+    description: Update packages using snap.
+  search|s: 
+    cmd: snap search <pkgs>
+    description: Search snaps
